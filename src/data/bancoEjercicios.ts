@@ -1,4 +1,10 @@
-import { Ejercicio } from '../types/missionPlan';
+export interface Ejercicio {
+    id: string;
+    enunciado: string;
+    respuestaEsperada: string;
+    pista: string;
+    tema: string;
+}
 
 export const BANCO_EJERCICIOS: Record<string, Ejercicio[]> = {
     'Ecuaciones lineales': [

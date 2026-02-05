@@ -10,8 +10,7 @@ import SubirTareaScreen from '../screens/SubirTareaScreen';
 import PadrePanelScreen from '../screens/PadrePanelScreen';
 import C5_CreandoMisionScreen from '../screens/C5_CreandoMisionScreen';
 import C5_ErrorCreandoMisionScreen from '../screens/C5_ErrorCreandoMisionScreen';
-import { MissionPlan } from '../types/missionPlan';
-import { MissionBuildStatus, MissionRequest } from '../types/missionTypes';
+import { MissionBuildStatus, MissionRequest, MissionPlan } from '../types/missionTypes';
 import { MissionService } from '../servicios/MissionService';
 import PadreBibliotecaTutorScreen from '../screens/PadreBibliotecaTutorScreen';
 import PanelAlumnoScreen from '../screens/PanelAlumnoScreen';
@@ -129,11 +128,8 @@ const AppNavigator: React.FC = () => {
     const userId = sesion.usuario?.id || 'demo-user';
     const req: MissionRequest = {
       studentId: userId,
-      type: 'practice',
+      type: 'practica',
       dateKey: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-      input: {
-        mode: 'solve'
-      }
     };
 
     try {
@@ -211,7 +207,13 @@ const AppNavigator: React.FC = () => {
         );
       case 'Progreso': return <ProgresoScreen />;
       case 'Perfil': return <PerfilScreen alIrAPadres={irAPadres} alIrAAlumno={irAAlumno} />;
-      default: return <MisionScreen alIrASubirTarea={irASubirTarea} alIrASesion={irASesion} />;
+      default: return (
+        <MisionScreen
+          alIrASubirTarea={irASubirTarea}
+          alIrASesion={irASesion}
+          alIniciarCreacion={iniciarCreacionMision}
+        />
+      );
     }
   };
 

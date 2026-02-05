@@ -1,7 +1,7 @@
 import React from 'react';
 import BaseLayout from '../components/BaseLayout';
 import C4_SesionActivaScreen from './C4_SesionActivaScreen';
-import { MissionPlan } from '../types/missionPlan';
+import { MissionPlan } from '../types/missionTypes';
 
 /**
  * Pantalla Entrenar - Bloque C1

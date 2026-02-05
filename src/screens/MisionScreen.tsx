@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MissionPlan } from '../types/missionPlan';
+import React, { useState, useEffect } from 'react';
+import { MissionPlan } from '../types/missionTypes';
 
 interface MisionScreenProps {
     alIrASubirTarea: () => void;
@@ -8,24 +8,50 @@ interface MisionScreenProps {
 }
 
 /**
- * Tablero de Misión Rediseñado (Skin: Centro de Comando).
- * Transforma la pantalla principal en un dashboard táctico Sci-Fi.
- * Mantiene intacta la lógica de selección y navegación.
+ * Tablero de Misión Rediseñado (Pedagógico / Funcional).
+ * Comportamiento:
+ * - Cards: Actúan como gatilladores de navegación directa (Upload vs IA Session).
+ * - Sincronizar: Consulta estado y actualiza la misión principal mostrada.
+ * - Racha: Persistente basada en constancia diaria.
  */
-const MisionScreen: React.FC<MisionScreenProps> = ({ alIrASubirTarea, alIrASesion, alIniciarCreacion }) => {
-    // --- LÓGICA ORIGINAL INTACTA ---
-    const [selectedOption, setSelectedOption] = useState<'custom' | 'ai'>('ai');
+const MisionScreen: React.FC<MisionScreenProps & { userId?: string }> = ({ alIrASubirTarea, alIrASesion, alIniciarCreacion, userId = 'student-123' }) => {
+    // --- ESTADO Y LÓGICA ---
+    const [missionOrigin, setMissionOrigin] = useState<'upload' | 'ai'>('ai');
+    const [streak, setStreak] = useState<number>(0);
+    const [isSyncing, setIsSyncing] = useState<boolean>(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    const handleStart = () => {
-        if (selectedOption === 'ai') {
-            alIniciarCreacion('new-ai-mission');
-        } else {
-            alIrASubirTarea();
+    // 1. Cargar estado inicial y Racha
+    useEffect(() => {
+        // Cargar Origen de Misión pendiente
+        const pendingUpload = localStorage.getItem('tpdm_mission_pending_upload');
+        if (pendingUpload === 'true') {
+            setMissionOrigin('upload');
         }
-    };
 
-    // Fix overflow issues globally while on this screen (Original Fix Preserved)
-    React.useEffect(() => {
+        // Cargar y Calcular Racha
+        const storedStreak = parseInt(localStorage.getItem('tpdm_streak') || '0', 10);
+        const lastActive = localStorage.getItem('tpdm_last_active');
+        const today = new Date().toISOString().split('T')[0];
+
+        if (lastActive) {
+            const lastDate = new Date(lastActive);
+            const todayDate = new Date(today);
+            const diffTime = Math.abs(todayDate.getTime() - lastDate.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 1) {
+                // Perdió la racha (más de 1 día sin actividad)
+                setStreak(0);
+                localStorage.setItem('tpdm_streak', '0');
+            } else {
+                setStreak(storedStreak);
+            }
+        } else {
+            setStreak(storedStreak);
+        }
+
+        // Fix overflow issues global
         document.documentElement.style.overflowX = 'hidden';
         document.body.style.overflowX = 'hidden';
         document.body.style.width = '100%';
@@ -35,29 +61,71 @@ const MisionScreen: React.FC<MisionScreenProps> = ({ alIrASubirTarea, alIrASesio
             document.body.style.width = '';
         };
     }, []);
-    // ----------------------------
+
+    // 2. Manejar Sincronización
+    const handleSync = async () => {
+        setIsSyncing(true);
+        setErrorMsg(null);
+        try {
+            // Use edgeApi to sync
+            const dateKey = new Date().toISOString().split('T')[0];
+            const { edgeApi } = await import('../servicios/edgeApi');
+            const plan = await edgeApi.missionSync(userId, dateKey, 'practica');
+
+            // If mission found/created, update UI
+            setMissionOrigin('ai');
+            // Optional: Auto-navigate or just show "Ready"
+            // For MVP: feedback
+            console.log('Mission Synced:', plan);
+        } catch (err: any) {
+            console.error('Sync Error:', err);
+            setErrorMsg('Error al sincronizar. Intenta de nuevo.');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const handleStartAI = async () => {
+        setIsSyncing(true);
+        setErrorMsg(null);
+        try {
+            // 1. Sync Mission
+            const dateKey = new Date().toISOString().split('T')[0];
+            const { edgeApi } = await import('../servicios/edgeApi');
+            const plan = await edgeApi.missionSync(userId, dateKey, 'practica');
+
+            // 2. Direct Navigation with Unified Plan
+            // Plan is already in the correct structure
+            alIrASesion(plan);
+        } catch (err: any) {
+            console.error('AI Start Error:', err);
+            setErrorMsg('No se pudo iniciar la misión IA.');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     return (
         <div style={styles.pageContainer}>
             {/* Mobile Frame Constraint */}
             <div style={styles.mobileFrame}>
 
-                {/* Header: Centro de Comando */}
+                {/* Header: Perfil Alumno */}
                 <header style={styles.header}>
                     <div style={styles.headerLeft}>
                         <div style={styles.avatarWrapper}>
                             <div style={styles.avatarGlow} />
                             <div style={styles.avatarCircle}>
-                                {/* Avatar visual placeholder */}
+                                {/* Avatar placeholder - Foundation for future feature */}
                                 <div style={{ width: '100%', height: '100%', background: '#1F2937' }} />
                             </div>
-                            <div style={styles.lvlBadge}>LVL 24</div>
+                            <div style={styles.lvlBadge}>NIVEL 24</div>
                         </div>
                         <div style={styles.headerText}>
-                            <h2 style={styles.cadetName}>Cadete Alex</h2>
+                            <h2 style={styles.studentName}>Alex</h2>
                             <div style={styles.statusBadge}>
                                 <div style={styles.statusDot} />
-                                <span style={styles.statusText}>ENLACE ESTABLE</span>
+                                <span style={styles.statusText}>CONEXIÓN ESTABLE</span>
                             </div>
                         </div>
                     </div>
@@ -73,13 +141,16 @@ const MisionScreen: React.FC<MisionScreenProps> = ({ alIrASubirTarea, alIrASesio
                     <div style={styles.heroCard}>
                         <div style={styles.heroGradientBg} />
                         <div style={styles.heroContent}>
-                            <div style={styles.priorityTag}>
-                                <span style={{ marginRight: 6 }}>⚡</span> PRIORIDAD OMEGA
-                            </div>
 
-                            <h1 style={styles.mainTitle}>Misión Principal</h1>
+                            {/* Titulo Dinámico según origen */}
+                            <h1 style={styles.mainTitle}>
+                                {missionOrigin === 'upload' ? 'Tarea del Profe' : 'Entrenamiento IA'}
+                            </h1>
+
                             <p style={styles.mainDesc}>
-                                Domina las <span style={{ color: '#00d4ff' }}>Ecuaciones Lineales</span> para desbloquear el sector Alpha.
+                                {missionOrigin === 'upload'
+                                    ? 'Resolver la tarea subida por tu profe.'
+                                    : 'Entrenamiento inteligente creado para ayudarte a mejorar.'}
                             </p>
 
                             <div style={styles.metricsGrid}>
@@ -88,7 +159,7 @@ const MisionScreen: React.FC<MisionScreenProps> = ({ alIrASubirTarea, alIrASesio
                                     <span style={styles.metricValue}>+500 XP</span>
                                 </div>
                                 <div style={styles.metricBox}>
-                                    <span style={styles.metricLabel}>COMPLEJIDAD</span>
+                                    <span style={styles.metricLabel}>DIFICULTAD</span>
                                     <div style={styles.difficultyRow}>
                                         <div style={styles.diffDotActive} />
                                         <div style={styles.diffDotActive} />
@@ -97,83 +168,98 @@ const MisionScreen: React.FC<MisionScreenProps> = ({ alIrASubirTarea, alIrASesio
                                 </div>
                             </div>
                         </div>
-
-
                     </div>
 
-                    {/* Grid de Estrategia (Secundarias) */}
+                    {/* Grid de Estrategia (Gatilladores de Acción) */}
                     <div style={styles.strategyGrid}>
-                        {/* Opción 1: Encargo del Mentor */}
+                        {/* Opción 1: Encargada por mi profe -> Navega a Subir Tarea */}
                         <div
-                            style={selectedOption === 'custom' ? styles.strategyCardActive : styles.strategyCard}
-                            onClick={() => {
-                                setSelectedOption('custom');
-                                alIrASubirTarea(); // Logic preserved: clicking selects and/or navigates if that was behavior
-                            }}
+                            style={styles.strategyCardInteractive}
+                            onClick={alIrASubirTarea}
                         >
                             <div style={styles.iconBoxNeonViolet}>
                                 <span style={{ fontSize: 24 }}>📖</span>
                             </div>
-                            <h3 style={styles.cardTitle}>Encargo del Mentor</h3>
-                            <p style={styles.cardDesc}>Estrategia táctica de aprendizaje.</p>
+                            <h3 style={styles.cardTitle}>Encargada por mi profe</h3>
+                            <p style={styles.cardDesc}>Sube una foto o documento de tu tarea para convertirla en la misión.</p>
                         </div>
 
-                        {/* Opción 2: Desafío de la IA */}
+                        {/* Opción 2: Desafío de mi entrenador IA -> Inicia Sesión IA */}
                         <div
-                            style={selectedOption === 'ai' ? styles.strategyCardActiveBlue : styles.strategyCard}
-                            onClick={() => setSelectedOption('ai')}
+                            style={styles.strategyCardInteractiveBlue}
+                            onClick={handleStartAI}
                         >
                             <div style={styles.iconBoxElectricBlue}>
                                 <span style={{ fontSize: 24 }}>🧠</span>
                             </div>
-                            <h3 style={styles.cardTitle}>Desafío de la IA</h3>
-                            <p style={styles.cardDesc}>Algoritmo de combate neuronal.</p>
+                            <h3 style={styles.cardTitle}>Desafío de mi entrenador IA</h3>
+                            <p style={{ ...styles.cardDesc, color: isSyncing ? '#00d4ff' : 'rgba(255,255,255,0.6)' }}>
+                                {isSyncing ? 'Iniciando sesión...' : 'La IA crea un desafio según tus debilidades y progreso.'}
+                            </p>
                         </div>
                     </div>
 
-                    {/* Racha de Combate Footer */}
-                    <div style={styles.combateRow}>
-                        <div style={styles.combateLeft}>
+                    {errorMsg && (
+                        <div style={{ color: '#ff6b6b', fontSize: '12px', textAlign: 'center', marginTop: '10px' }}>
+                            {errorMsg}
+                        </div>
+                    )}
+
+                    {/* Racha Footer */}
+                    <div style={styles.streakRow}>
+                        <div style={styles.streakLeft}>
                             <div style={styles.fireIconBox}>
                                 <span style={{ fontSize: 20 }}>🔥</span>
                             </div>
                             <div>
-                                <div style={styles.combateLabel}>Racha de Combate</div>
-                                <div style={styles.combateDots}>
-                                    <div style={styles.cDotActive} />
-                                    <div style={styles.cDotActive} />
-                                    <div style={styles.cDotActive} />
-                                    <div style={styles.cDotInactive} />
-                                    <div style={styles.cDotInactive} />
+                                <div style={styles.streakLabel}>Racha de Entrenamiento</div>
+                                <div style={styles.streakDots}>
+                                    {[...Array(5)].map((_, i) => (
+                                        <div key={i} style={i < streak % 6 ? styles.cDotActive : styles.cDotInactive} />
+                                    ))}
                                 </div>
                             </div>
                         </div>
-                        <div style={styles.combateRight}>
-                            <span style={styles.combateValue}>03</span>
-                            <span style={styles.combateUnit}>DÍAS</span>
+                        <div style={styles.streakRight}>
+                            <span style={styles.streakValue}>{streak.toString().padStart(2, '0')}</span>
+                            <span style={styles.streakUnit}>DÍAS</span>
                         </div>
                     </div>
 
-                    <button style={styles.syncButton} onClick={handleStart}>
-                        <span style={{ marginRight: 8, fontSize: 18 }}>📟</span>
-                        SINCRONIZAR MISIÓN
+                    <button
+                        style={{ ...styles.syncButton, opacity: isSyncing ? 0.7 : 1 }}
+                        onClick={handleSync}
+                        disabled={isSyncing}
+                    >
+                        {isSyncing ? (
+                            <>
+                                <span style={styles.spinner} />
+                                SINCRONIZANDO...
+                            </>
+                        ) : (
+                            <>
+                                <span style={{ marginRight: 8, fontSize: 18 }}>↻</span>
+                                SINCRONIZAR MISIÓN
+                            </>
+                        )}
                     </button>
+
                 </div>
             </div>
         </div>
     );
 };
 
-// --- ESTILOS "CENTRO DE COMANDO" ---
+// --- ESTILOS ---
 const styles = {
     pageContainer: {
         height: '100%',
         width: '100%',
-        backgroundColor: '#050a14', // Background Dark
+        backgroundColor: '#050a14',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'flex-start',
-        fontFamily: '"Space Grotesk", "Noto Sans", sans-serif',
+        fontFamily: '"Inter", sans-serif',
         color: '#FFFFFF',
         overflow: 'hidden' as const,
     },
@@ -233,14 +319,15 @@ const styles = {
         padding: '2px 4px',
         fontSize: '8px',
         fontWeight: '900',
-        color: '#bc13fe', // Neon Violet
+        color: '#bc13fe',
         zIndex: 2,
     },
     headerText: {
         display: 'flex',
         flexDirection: 'column' as const,
+        gap: '4px',
     },
-    cadetName: {
+    studentName: {
         fontSize: '18px',
         fontWeight: 'bold',
         margin: 0,
@@ -254,12 +341,11 @@ const styles = {
         border: '1px solid rgba(0, 212, 255, 0.2)',
         borderRadius: '99px',
         padding: '2px 8px',
-        marginTop: '2px',
         width: 'fit-content',
     },
     statusDot: {
         width: '6px', height: '6px',
-        backgroundColor: '#00d4ff', // Electric Blue
+        backgroundColor: '#00d4ff',
         borderRadius: '50%',
         boxShadow: '0 0 6px #00d4ff',
     },
@@ -289,22 +375,20 @@ const styles = {
         borderRadius: '50%',
         border: '2px solid #050a14',
     },
-
     // Contenido Scroll
     scrollContent: {
         flex: 1,
         overflowY: 'auto' as const,
         padding: '20px',
-        paddingBottom: '130px', // Increased padding to clear Nav Bar
+        paddingBottom: '130px',
         display: 'flex',
         flexDirection: 'column' as const,
         gap: '24px',
-        width: '100%', // Ensure full width
-        maxWidth: '480px', // Match max width
-        margin: '0 auto', // Center
+        width: '100%',
+        maxWidth: '480px',
+        margin: '0 auto',
         boxSizing: 'border-box' as const,
     },
-
     // Hero Card
     heroCard: {
         position: 'relative' as const,
@@ -315,8 +399,9 @@ const styles = {
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column' as const,
-        gap: '20px',
+        gap: '16px',
         boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+        transition: 'all 0.3s ease',
     },
     heroGradientBg: {
         position: 'absolute' as const,
@@ -332,28 +417,12 @@ const styles = {
         display: 'flex',
         flexDirection: 'column' as const,
     },
-    priorityTag: {
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(4px)',
-        border: '1px solid rgba(0, 212, 255, 0.3)',
-        color: '#00d4ff',
-        fontSize: '10px',
-        fontWeight: '900',
-        textTransform: 'uppercase' as const,
-        letterSpacing: '1px',
-        padding: '4px 10px',
-        borderRadius: '99px',
-        alignSelf: 'flex-start',
-        marginBottom: '16px',
-        display: 'flex',
-        alignItems: 'center',
-    },
     mainTitle: {
-        fontSize: '24px',
+        fontSize: '22px',
         fontWeight: '700',
         color: 'white',
         margin: '0 0 8px 0',
-        lineHeight: 1.1,
+        lineHeight: 1.2,
     },
     mainDesc: {
         fontSize: '14px',
@@ -386,7 +455,7 @@ const styles = {
     metricValue: {
         fontSize: '16px',
         fontWeight: '900',
-        color: '#bc13fe', // Neon Violet
+        color: '#bc13fe',
         fontFamily: 'monospace',
     },
     difficultyRow: {
@@ -410,7 +479,7 @@ const styles = {
         zIndex: 1,
         width: '100%',
         padding: '16px',
-        backgroundColor: '#00ff9d', // Primary Green
+        backgroundColor: '#00ff9d',
         color: '#050a14',
         border: 'none',
         borderRadius: '12px',
@@ -423,43 +492,44 @@ const styles = {
         justifyContent: 'center',
         cursor: 'pointer',
         boxShadow: '0 4px 25px rgba(0, 255, 157, 0.4)',
+        gap: '8px',
     },
-
+    spinner: {
+        width: '16px',
+        height: '16px',
+        border: '2px solid #050a14',
+        borderTop: '2px solid transparent',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+        display: 'inline-block',
+    },
     // Strategy Grid
     strategyGrid: {
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: '12px',
     },
-    strategyCard: {
-        backgroundColor: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '16px',
-        padding: '16px',
-        cursor: 'pointer',
-        transition: 'transform 0.1s',
-        display: 'flex',
-        flexDirection: 'column' as const,
-    },
-    strategyCardActive: { // For Custom/Mentor
+    strategyCardInteractive: { // Interactive generic style
         backgroundColor: 'rgba(188, 19, 254, 0.05)',
-        border: '1px solid rgba(188, 19, 254, 0.5)',
+        border: '1px solid rgba(188, 19, 254, 0.3)',
         borderRadius: '16px',
         padding: '16px',
         cursor: 'pointer',
-        boxShadow: '0 0 15px rgba(188, 19, 254, 0.15)',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
         display: 'flex',
         flexDirection: 'column' as const,
+        transition: 'transform 0.1s, box-shadow 0.2s',
     },
-    strategyCardActiveBlue: { // For AI
+    strategyCardInteractiveBlue: {
         backgroundColor: 'rgba(0, 212, 255, 0.05)',
-        border: '1px solid rgba(0, 212, 255, 0.5)',
+        border: '1px solid rgba(0, 212, 255, 0.3)',
         borderRadius: '16px',
         padding: '16px',
         cursor: 'pointer',
-        boxShadow: '0 0 15px rgba(0, 212, 255, 0.15)',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
         display: 'flex',
         flexDirection: 'column' as const,
+        transition: 'transform 0.1s, box-shadow 0.2s',
     },
     iconBoxNeonViolet: {
         width: '40px', height: '40px',
@@ -484,21 +554,21 @@ const styles = {
         marginBottom: '12px',
     },
     cardTitle: {
-        fontSize: '14px',
+        fontSize: '13px',
         fontWeight: '700',
         color: 'white',
-        margin: '0 0 4px 0',
+        margin: '0 0 6px 0',
         lineHeight: 1.2,
     },
     cardDesc: {
-        fontSize: '10px', // Smaller font for desc
-        color: 'rgba(255,255,255,0.5)',
+        fontSize: '11px',
+        color: 'rgba(255,255,255,0.6)',
         margin: 0,
-        fontWeight: '500',
+        fontWeight: '400',
+        lineHeight: 1.3,
     },
-
-    // Combat Streak
-    combateRow: {
+    // Streak
+    streakRow: {
         backgroundColor: 'rgba(10, 17, 32, 0.8)',
         border: '1px solid rgba(255,255,255,0.05)',
         borderRadius: '16px',
@@ -508,7 +578,7 @@ const styles = {
         alignItems: 'center',
         marginBottom: '20px',
     },
-    combateLeft: {
+    streakLeft: {
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
@@ -523,13 +593,13 @@ const styles = {
         justifyContent: 'center',
         color: '#bc13fe',
     },
-    combateLabel: {
+    streakLabel: {
         fontSize: '13px',
         fontWeight: '700',
         color: 'white',
         marginBottom: '4px',
     },
-    combateDots: {
+    streakDots: {
         display: 'flex',
         gap: '4px',
     },
@@ -544,17 +614,17 @@ const styles = {
         backgroundColor: 'rgba(255,255,255,0.1)',
         borderRadius: '4px',
     },
-    combateRight: {
+    streakRight: {
         textAlign: 'right' as const,
     },
-    combateValue: {
+    streakValue: {
         display: 'block',
         fontSize: '18px',
         fontWeight: '900',
         color: 'rgba(255,255,255,0.9)',
         fontFamily: 'monospace',
     },
-    combateUnit: {
+    streakUnit: {
         fontSize: '8px',
         fontWeight: '900',
         color: 'rgba(255,255,255,0.4)',

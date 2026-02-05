@@ -4,11 +4,13 @@ import { detectErrorTag } from '../servicios/ErrorTagger';
 import { SYSTEM_PROMPT_TUTOR } from '../data/tutorPrompt';
 import { getTutorFeedback } from '../utils/tutorApi';
 import { memoriaAlumno } from '../servicios/RepositorioMemoriaAlumno';
+import { edgeApi } from '../servicios/edgeApi';
 import MathKeyboard from '../components/MathKeyboard';
+import { MissionPlan } from '../types/missionTypes';
 
 interface C4SesionActivaScreenProps {
   alVolver: () => void;
-  plan: any;
+  plan: MissionPlan;
   userId: string;
 }
 
@@ -70,7 +72,8 @@ const parseTutorResponse = (fullText: string): { message: string, event: EventoT
 };
 
 const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, plan, userId }) => {
-  const ejercicios = plan.exercises || [];
+  // Use mission_steps from Unified Type. Filter for exercises.
+  const ejercicios = plan.mission_steps?.filter(s => s.type === 'exercise') || [];
 
   const [indiceActual, setIndiceActual] = useState(0);
   const [respuestaUsuario, setRespuestaUsuario] = useState('');
@@ -114,20 +117,36 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
     }
   }, [controls, userId]);
 
+  // Start Session on Backend
+  useEffect(() => {
+    const startBackendSession = async () => {
+      try {
+        await edgeApi.sessionStart(plan.id, userId);
+      } catch (e) {
+        console.error("Error starting session:", e);
+        setBackendDisponible(false);
+      }
+    };
+    startBackendSession();
+  }, [plan.id, userId]);
+
   // --- Enforcement State ---
   const [hintsUsedInStep, setHintsUsedInStep] = useState(0);
   const [voiceUsedSeconds, setVoiceUsedSeconds] = useState(0);
   const [voiceEnabled, setVoiceEnabled] = useState(controls.enabled ? controls.voiceAllowed : true);
 
   // --- Derived Enforcement Constants ---
-  const durationTargetMin: number = plan.durationTargetMin || 15;
-  const rules = plan.rules || {};
-  const voiceCapSeconds = rules.voiceCapSeconds || Math.round(durationTargetMin * 60 * 0.20);
+  // No longer have direct access to 'durationTargetMin' on MissionPlan in unified type
+  // Defaulting for MVP or need to add to unified type if critical
+  const durationTargetMin: number = 15;
+  const rules = {};
+  const voiceCapSeconds = Math.round(durationTargetMin * 60 * 0.20);
 
-  const stepMaxHints = plan.exercises?.[indiceActual]?.maxHints ?? 2;
+  // Check content.difficulty or default
+  const stepMaxHints = 2;
   const policyMax = controls.enabled && controls.maxHintsPerStepOverride
     ? controls.maxHintsPerStepOverride
-    : (rules.helpPolicy?.maxHintsPerStep ?? 2);
+    : ((rules as any).helpPolicy?.maxHintsPerStep ?? 2);
   const effectiveMaxHints = Math.min(stepMaxHints, policyMax, 2);
   const pistasAgotadas = hintsUsedInStep >= effectiveMaxHints;
 
@@ -144,7 +163,11 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
 
   const startTimeRef = useRef(Date.now());
 
-  const ejercicioActual = ejercicios[indiceActual] || { enunciado: 'Fin de la misión', id: 'end', respuestaEsperada: '', pista: '' };
+  const ejercicioActual = ejercicios[indiceActual] || {
+    content: { question: 'Fin de la misión', correctAnswer: '' },
+    id: 'end',
+    status: 'bloqueado'
+  };
   const totalEjercicios = ejercicios.length;
 
   useEffect(() => {
@@ -166,10 +189,10 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
     });
 
     const summary = {
-      missionId: plan.missionId,
+      missionId: plan.id,
       studentId: userId,
-      topic: plan.topic,
-      sourceMotor: plan.motorId || 'F',
+      topic: "Entrenamiento", // logic needed to resolve topic?
+      sourceMotor: plan.origin || 'ai',
       durationSec,
       totalAttempts: stats.totalAttempts,
       correctAttempts: stats.correctAttempts,
@@ -204,8 +227,8 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
   };
 
   const validarRespuestaLocal = (respuesta: string) => {
-    if (!ejercicioActual?.respuestaEsperada) return false;
-    return respuesta.trim().toLowerCase() === ejercicioActual.respuestaEsperada.trim().toLowerCase();
+    if (!ejercicioActual?.content?.correctAnswer) return false;
+    return respuesta.trim().toLowerCase() === ejercicioActual.content.correctAnswer.trim().toLowerCase();
   };
 
   const usarValidacionLocal = (respuesta: string, baseEvent?: any) => {
@@ -213,9 +236,9 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
 
     const evtContext = baseEvent || {
       alumnoId: userId,
-      missionId: plan.missionId,
-      motorId: plan.motorId || 'F',
-      competenciaId: plan.topicId || 'ecuaciones_lineales',
+      missionId: plan.id,
+      motorId: 'F', // Default for now
+      competenciaId: 'general', // Default
       timeMs: 0,
       timestamp: Date.now()
     };
@@ -224,8 +247,8 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
     if (!esCorrecto) {
       errorTagCalculado = detectErrorTag({
         userAnswer: respuesta,
-        expectedAnswer: ejercicioActual.respuestaEsperada || '',
-        prompt: ejercicioActual.enunciado
+        expectedAnswer: ejercicioActual.content?.correctAnswer || '',
+        prompt: ejercicioActual.content?.question || ''
       });
     }
 
@@ -277,9 +300,9 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
     const timeMs = Date.now() - startTimeRef.current;
     const baseEvent = {
       alumnoId: userId,
-      missionId: plan.missionId,
-      motorId: plan.motorId || 'F',
-      competenciaId: plan.topicId || 'ecuaciones_lineales',
+      missionId: plan.id,
+      motorId: 'F',
+      competenciaId: 'general',
       timestamp: Date.now(),
       timeMs
     };
@@ -295,103 +318,44 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
     setCargando(true);
 
     if (backendDisponible) {
-      // Retrieve Library Context if available
-      const libraryContextKey = `biblioteca_context_${userId}`;
-      const libraryContextStr = localStorage.getItem(libraryContextKey);
-      const libraryContext = libraryContextStr ? JSON.parse(libraryContextStr) : undefined;
-
       try {
-        const response = await getTutorFeedback({
-          userId: userId,
-          sessionId: plan.missionId,
-          exerciseId: ejercicioActual.id,
-          grade: plan.grade,
-          topic: ejercicioActual.tema || plan.topic,
-          studentAnswer: textoAEnviar,
-          attemptNumber: numeroIntento,
-          mode: 'text',
-          exercisePrompt: ejercicioActual.enunciado,
-          hintAllowed: !pistasAgotadas,
-          systemPrompt: SYSTEM_PROMPT_TUTOR,
-          libraryContext: libraryContext
-        });
+        // Use Edge Function for Answer
+        const stepId = ejercicioActual.id; // Correct ID from MissionStep
 
-        const { message, event } = parseTutorResponse(response.assistantText);
+        const response = await edgeApi.answerSubmit(plan.id, stepId, userId, textoAEnviar);
 
-        if (event) {
-          const stats = statsRef.current;
-
-          if (event.isCorrect === true) {
-            stats.correctAttempts += 1;
-          }
-          if (event.isCorrect !== null) {
-            stats.totalAttempts += 1;
-          }
-          if (event.hintsUsedDelta === 1) {
-            stats.hintsUsedTotal += 1;
-            setHintsUsedInStep(prev => prev + 1);
-            CCAEventService.recordEvent({ ...baseEvent, type: 'hint_used' });
-          }
-          if (event.errorTag && event.isCorrect === false) {
-            stats.mistakesByTag[event.errorTag] = (stats.mistakesByTag[event.errorTag] || 0) + 1;
-          }
-          if (event.moodGuess) {
-            stats.lastMood = event.moodGuess;
-          }
-          if (event.voiceMode === 'voice_disabled') {
-            setVoiceEnabled(false);
-          }
-
-          if (event.isCorrect !== null) {
-            CCAEventService.recordEvent({
-              ...baseEvent,
-              type: event.isCorrect ? 'attempt_correct' : 'attempt_incorrect',
-              correct: event.isCorrect,
-              errorTag: event.errorTag || undefined
-            });
-          }
-        } else {
-          console.warn("No valid EVENTO_JSON found, using raw response logic");
-        }
-
-        setFeedback({
-          tipo: event?.isCorrect === true ? 'correcto' : (event?.isCorrect === false ? 'incorrecto' : null),
-          mensaje: message
-        });
-
-        const nextActionCode = event?.recommendNext || response.nextAction || 'retry';
-
-        if (nextActionCode === 'next_step') {
-          statsRef.current.stepsCompleted += 1;
+        if (response.isCorrect) {
+          setFeedback({ tipo: 'correcto', mensaje: response.feedback || '¡Correcto!' });
           setNextAction('next');
           setMostrarPista(false);
-          setHintsUsedInStep(0);
-        } else if (nextActionCode === 'close') {
-          finalizeSession('close');
-          setCargando(false);
-          return;
-        } else if (nextActionCode === 'refuerzo') {
-          setNextAction('next');
+          statsRef.current.correctAttempts += 1;
+          statsRef.current.stepsCompleted += 1;
         } else {
+          setFeedback({ tipo: 'incorrecto', mensaje: response.feedback || 'Incorrecto' });
           setNextAction('retry');
           setMostrarPista(true);
           setNumeroIntento(prev => prev + 1);
-          startTimeRef.current = Date.now();
         }
 
-        // Only record intent if it was a real answer attempt, not a hint request
-        if (!mensajeOverride) {
-          const nuevoIntento: Intento = {
-            ejercicioId: ejercicioActual.id,
-            respuesta: textoAEnviar,
-            correcto: event?.isCorrect === true,
-            ts: Date.now()
-          };
-          setIntentos(prev => [...prev, nuevoIntento]);
+        // Check mission complete
+        if (response.missionComplete) {
+          // Can trigger finish
+          setSessionFinished({ accuracy: 1, topErrorTag: 'none', steps: statsRef.current.stepsCompleted });
         }
+
+        // Record locally for stats/charts
+        const nuevoIntento: Intento = {
+          ejercicioId: ejercicioActual.id,
+          respuesta: textoAEnviar,
+          correcto: response.isCorrect,
+          ts: Date.now()
+        };
+        setIntentos(prev => [...prev, nuevoIntento]);
 
       } catch (error) {
+        console.error("Backend Answer Error:", error);
         setBackendDisponible(false);
+        // Fallback to local
         usarValidacionLocal(textoAEnviar, baseEvent);
       }
     } else {
@@ -432,9 +396,9 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
       alert("Estrategia: 1) Lee despacio. 2) Identifica datos. 3) Verifica signos.");
       CCAEventService.recordEvent({
         alumnoId: userId,
-        missionId: plan.missionId,
-        competenciaId: plan.topicId || 'general',
-        motorId: plan.motorId || 'F',
+        missionId: plan.id,
+        competenciaId: 'general',
+        motorId: 'F',
         timeMs: Date.now() - startTimeRef.current,
         timestamp: Date.now(),
         type: 'help_limit_reached'
@@ -594,7 +558,7 @@ const C4_SesionActivaScreen: React.FC<C4SesionActivaScreenProps> = ({ alVolver, 
 
             {/* Enunciado Content */}
             <div style={estilos.enunciadoBox}>
-              <p style={estilos.enunciadoTexto}>{ejercicioActual.enunciado}</p>
+              <p style={estilos.enunciadoTexto}>{ejercicioActual.content?.question}</p>
             </div>
 
             {/* Visual Placeholder for Geometry (Icon) */}

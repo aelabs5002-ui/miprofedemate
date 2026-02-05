@@ -5,31 +5,50 @@ interface RegisterScreenProps {
 }
 
 /**
- * Pantalla de Registro rediseñada (Skin: Escuadrón/Misión).
- * Mantiene lógica intacta (validaciones y handlers) con nueva UI futurista.
+ * Pantalla de Registro (Skin: Escuadrón/Misión).
+ * Orientada al Padre/Representante.
+ * Sin gamificación excesiva ni botón atrás.
  */
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
-    // --- LÓGICA ORIGINAL INTACTA ---
     const [nombre, setNombre] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [mostrarPassword, setMostrarPassword] = useState(false);
 
+    // Estados de feedback
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
     const manejarRegistro = (e: React.FormEvent) => {
         e.preventDefault();
-        if (password !== confirmPassword) {
-            alert('Las contraseñas no coinciden');
+        setErrorMsg(null);
+        setSuccessMsg(null);
+
+        // Validaciones básicas
+        if (!nombre.trim() || !email.trim() || !password || !confirmPassword) {
+            setErrorMsg('Por favor completa todos los campos.');
             return;
         }
-        if (nombre && email && password.length >= 6) {
-            alert('Registro simulado exitoso. Ahora inicia sesión.');
-            alIrALogin();
-        } else {
-            alert('Por favor completa todos los campos (Pass min 6)');
+
+        if (password.length < 6) {
+            setErrorMsg('La clave debe tener al menos 6 caracteres.');
+            return;
         }
+
+        if (password !== confirmPassword) {
+            setErrorMsg('Las contraseñas no coinciden.');
+            return;
+        }
+
+        // Simular éxito de creación de cuenta
+        setSuccessMsg('¡Cuenta creada correctamente! Redirigiendo...');
+
+        // Redirigir a Login después de breve delay (o inmediato)
+        setTimeout(() => {
+            alIrALogin();
+        }, 1500);
     };
-    // --------------------------------
 
     return (
         <div style={styles.pageContainer}>
@@ -40,35 +59,33 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                 <div style={styles.glowBottomLeft} />
             </div>
 
-            {/* Header de Navegación */}
+            {/* Header de Navegación (Solo espacio o status si se quisiera, sin botón atrás) */}
             <nav style={styles.navBar}>
-                <button style={styles.navBackButton} onClick={alIrALogin} type="button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span style={styles.backText}>VOLVER</span>
-                </button>
+                {/* Empty navbar to maintain spacing consistency if needed, or remove padding */}
             </nav>
 
             <div style={styles.scrollContainer}>
                 {/* Header Section */}
                 <div style={styles.heroSection}>
                     <div style={styles.avatarContainer}>
-                        {/* Avatar Placeholder: Green Variant for Register */}
-                        <div style={{ ...styles.avatarInner, borderColor: '#34D399' }}>
-                            <div style={styles.avatarPlaceholder} />
-                            <div style={styles.scanlineOverlay} />
+                        {/* IMAGEN MENTOR (Misma que Login, sin badge de cadete) */}
+                        <div style={styles.mentorImageWrapper}>
+                            <img
+                                src="/images/mentor_login.png"
+                                alt="Mentor"
+                                style={styles.mentorImage}
+                                onError={(e) => e.currentTarget.style.display = 'none'}
+                            />
                         </div>
-                        <div style={{ ...styles.newCadetBadge, color: '#34D399', borderColor: '#34D399' }}>RECLUTAMIENTO</div>
                     </div>
 
                     <div style={styles.titleWrapper}>
                         <h1 style={styles.mainTitle}>
-                            NUEVO <br />
-                            <span style={styles.highlightText}>CADETE</span>
+                            REGISTRO DEL PADRE <br />
+                            <span style={styles.highlightText}>O REPRESENTANTE</span>
                         </h1>
                         <p style={styles.subtitle}>
-                            Crea tu identidad y únete a las filas del conocimiento.
+                            Crea la cuenta del adulto responsable para gestionar el aprendizaje.
                         </p>
                     </div>
                 </div>
@@ -76,30 +93,23 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                 {/* Formulario */}
                 <form onSubmit={manejarRegistro} style={styles.formContainer}>
 
-                    {/* Campo: NOMBRE */}
+                    {/* Campo: NOMBRE Y APELLIDO */}
                     <div style={styles.inputGroup}>
-                        <label style={styles.label}>NOMBRE DE PILOTO</label>
+                        <label style={styles.label}>NOMBRE Y APELLIDO</label>
                         <div style={styles.inputWrapper}>
                             <input
                                 type="text"
-                                placeholder="Tu nombre o apodo"
+                                placeholder="Ej. Juan Pérez"
                                 value={nombre}
                                 onChange={(e) => setNombre(e.target.value)}
                                 style={styles.input}
-                                required
                             />
-                            <div style={styles.inputIconRight}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round" />
-                                    <circle cx="12" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            </div>
                         </div>
                     </div>
 
                     {/* Campo: EMAIL */}
                     <div style={styles.inputGroup}>
-                        <label style={styles.label}>COMUNICACIÓN (EMAIL)</label>
+                        <label style={styles.label}>EMAIL DEL PADRE O REPRESENTANTE</label>
                         <div style={styles.inputWrapper}>
                             <input
                                 type="email"
@@ -107,28 +117,20 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 style={styles.input}
-                                required
                             />
-                            <div style={styles.inputIconRight}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" strokeLinecap="round" strokeLinejoin="round" />
-                                    <polyline points="22,6 12,13 2,6" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            </div>
                         </div>
                     </div>
 
                     {/* Campo: PASSWORD */}
                     <div style={styles.inputGroup}>
-                        <label style={styles.label}>CLAVE DE ACCESO</label>
+                        <label style={styles.label}>CLAVE (Mín. 6 caracteres)</label>
                         <div style={styles.inputWrapper}>
                             <input
                                 type={mostrarPassword ? "text" : "password"}
-                                placeholder="Mínimo 6 caracteres"
+                                placeholder="Ingresa tu clave"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 style={styles.input}
-                                required
                             />
                             <button
                                 type="button"
@@ -154,10 +156,24 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 style={styles.input}
-                                required
                             />
                         </div>
                     </div>
+
+                    {/* Mensajes de Estado Inline */}
+                    {errorMsg && (
+                        <div style={styles.errorMsg}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                            <span>{errorMsg}</span>
+                        </div>
+                    )}
+
+                    {successMsg && (
+                        <div style={styles.successMsg}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                            <span>{successMsg}</span>
+                        </div>
+                    )}
 
                     {/* CTA Register */}
                     <button type="submit" style={styles.primaryButton}>
@@ -176,7 +192,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                 <div style={styles.footer}>
                     <p style={styles.footerText}>
                         ¿Ya tienes credenciales?
-                        <span onClick={alIrALogin} style={styles.linkRegister}>Inicia Sesión</span>
+                        <br />
+                        <span onClick={alIrALogin} style={styles.linkRegister}>INICIA SESIÓN</span>
                     </p>
                 </div>
 
@@ -185,7 +202,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
     );
 };
 
-// --- ESTILOS NEON / FUTURISTAS (Reutilizados de LoginScreen) ---
+// --- ESTILOS NEON / FUTURISTAS ---
 const styles = {
     pageContainer: {
         minHeight: '100vh',
@@ -234,23 +251,6 @@ const styles = {
         alignItems: 'center',
         padding: '24px',
     },
-    navBackButton: {
-        padding: '8px 16px',
-        borderRadius: '8px',
-        backgroundColor: '#131b3a',
-        border: '1px solid #2a3b68',
-        color: '#ffffff',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    backText: {
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-    },
     // Content
     scrollContainer: {
         position: 'relative' as const,
@@ -274,49 +274,31 @@ const styles = {
     avatarContainer: {
         position: 'relative' as const,
         marginBottom: '24px',
-        transform: 'rotate(-2deg)', // Slight tilt opposite to login
     },
-    avatarInner: {
-        width: '80px', height: '80px',
-        borderRadius: '20px',
-        backgroundColor: '#131b3a',
-        border: '2px solid #34D399',
-        padding: '4px',
-        boxShadow: '0 0 20px rgba(52, 211, 153, 0.2)',
+    mentorImageWrapper: {
+        width: '120px',
+        height: '120px',
+        borderRadius: '50%',
         overflow: 'hidden',
-        position: 'relative' as const,
+        border: '2px solid #34D399',
+        boxShadow: '0 0 20px rgba(52, 211, 153, 0.2)',
+        backgroundColor: '#131b3a',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    avatarPlaceholder: {
-        width: '100%', height: '100%',
-        borderRadius: '14px',
-        background: 'linear-gradient(135deg, #064E3B 0%, #065F46 100%)',
-    },
-    scanlineOverlay: {
-        position: 'absolute' as const,
-        inset: 0,
-        background: 'linear-gradient(to bottom, transparent 50%, rgba(52, 211, 153, 0.1) 50%)',
-        backgroundSize: '100% 4px',
-        pointerEvents: 'none' as const,
-    },
-    newCadetBadge: {
-        position: 'absolute' as const,
-        bottom: '-10px', right: '-10px',
-        backgroundColor: '#0A0E29',
-        border: '1px solid #34D399',
-        color: '#34D399',
-        fontSize: '9px',
-        fontWeight: '800',
-        padding: '2px 6px',
-        borderRadius: '4px',
-        letterSpacing: '1px',
+    mentorImage: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover' as const,
     },
     titleWrapper: {
         textAlign: 'center' as const,
     },
     mainTitle: {
-        fontSize: '28px',
+        fontSize: '24px',
         fontWeight: '800',
-        lineHeight: '1.1',
+        lineHeight: '1.2',
         color: '#ffffff',
         margin: '0 0 8px 0',
         textTransform: 'uppercase' as const,
@@ -332,7 +314,7 @@ const styles = {
         color: '#9CA3AF',
         margin: 0,
         fontWeight: '400',
-        maxWidth: '260px',
+        maxWidth: '280px',
         lineHeight: '1.4',
     },
     // Form
@@ -376,11 +358,6 @@ const styles = {
         outline: 'none',
         boxSizing: 'border-box' as const,
     },
-    inputIconRight: {
-        position: 'absolute' as const,
-        right: '12px',
-        pointerEvents: 'none' as const,
-    },
     eyeButton: {
         position: 'absolute' as const,
         right: '8px',
@@ -391,6 +368,26 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    errorMsg: {
+        fontSize: '13px',
+        color: '#FF4C4C',
+        backgroundColor: 'rgba(255, 76, 76, 0.1)',
+        padding: '10px',
+        borderRadius: '8px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    successMsg: {
+        fontSize: '13px',
+        color: '#34D399',
+        backgroundColor: 'rgba(52, 211, 153, 0.1)',
+        padding: '10px',
+        borderRadius: '8px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
     },
     // Button
     primaryButton: {
@@ -405,7 +402,7 @@ const styles = {
         textTransform: 'uppercase' as const,
         letterSpacing: '1px',
         cursor: 'pointer',
-        marginTop: '16px',
+        marginTop: '8px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -418,15 +415,18 @@ const styles = {
         textAlign: 'center' as const,
     },
     footerText: {
-        fontSize: '13px',
+        fontSize: '14px',
         color: '#9CA3AF',
+        lineHeight: '1.6',
     },
     linkRegister: {
         color: '#34D399',
-        fontWeight: '700',
+        fontWeight: '800',
         cursor: 'pointer',
-        marginLeft: '6px',
         textDecoration: 'none',
+        fontSize: '16px',
+        display: 'inline-block',
+        marginTop: '4px',
     },
 };
 

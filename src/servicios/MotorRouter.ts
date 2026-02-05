@@ -1,4 +1,4 @@
-import { MissionPlan } from '../types/missionPlan';
+import { MissionPlan } from '../types/missionTypes';
 
 export type MotorId = 'A' | 'F';
 
@@ -7,18 +7,20 @@ export const MotorRouter = {
      * Decide qué motor usar basándose en el plan de la misión.
      */
     resolveMotor: (plan: MissionPlan): MotorId => {
-        // 1. Recomendación explícita
-        if (plan.recommendedMotorId === 'A' || plan.recommendedMotorId === 'F') {
-            return plan.recommendedMotorId;
+        const ctx = plan.context as any;
+        // 1. Recomendación explícita (Stored in context now)
+        const recMotor = ctx?.recommendedMotorId;
+        if (recMotor === 'A' || recMotor === 'F') {
+            return recMotor;
         }
 
         // 2. Inferencia por Tags
-        const tags = plan.focusErrorTags || [];
-        if (tags.some(t => ['operaciones_basicas', 'fracciones'].includes(t))) {
+        const tags = ctx?.focusErrorTags || [];
+        if (Array.isArray(tags) && tags.some((t: string) => ['operaciones_basicas', 'fracciones'].includes(t))) {
             return 'A'; // Aritmética
         }
 
-        if (tags.some(t => ['despeje', 'signos', 'igualdad'].includes(t))) {
+        if (Array.isArray(tags) && tags.some((t: string) => ['despeje', 'signos', 'igualdad'].includes(t))) {
             return 'F'; // Fundamental (Álgebra)
         }
 

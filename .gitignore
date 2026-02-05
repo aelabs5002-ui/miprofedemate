@@ -4,3 +4,5 @@ dist
 .DS_Store
 *.log
 tutor-matematico-ia-main
+.env.local
+.env.*

@@ -1,4 +1,4 @@
-import { MissionPlan, Ejercicio } from '../types/missionPlan';
+import { MissionPlan, MissionStep } from '../types/missionTypes';
 import { memoriaAlumno } from './RepositorioMemoriaAlumno';
 import { BANCO_EJERCICIOS } from '../data/bancoEjercicios';
 
@@ -64,34 +64,60 @@ export const buildMissionPlan = (
         .slice(0, n);
 
     // 3. Determinar Origen y Contexto
-    let origin: 'auto' | 'observacion' | 'tarea' | 'tarea+observacion' = 'auto';
+    let origin: 'ai' | 'manual' = 'manual'; // Default to manual/ai (locally generated is usually manual practice or ai simulation)
+    // If it's "auto" generated locally, we map it to 'manual' or 'ai' depending on logic.
+    // Let's use 'manual' for local practice without AI intervention, or 'ai' if mimicking AI.
+    // Given it's "motor local", 'manual' (Práctica Libre) often fits, or we can use 'ai' if we consider the algorithm an AI.
+    // Let's stick to 'manual' for local generation to distinguish from Edge Function AI.
+    origin = 'manual';
     let finalContext: MissionPlan['context'] | undefined = undefined;
 
     if (contextInput && (contextInput.observacion || contextInput.tareaTexto || contextInput.tareaNombre)) {
-        const hasA = !!contextInput.tareaTexto || !!contextInput.tareaNombre;
-        const hasB = !!contextInput.observacion;
-
-        if (hasA && hasB) origin = 'tarea+observacion';
-        else if (hasA) origin = 'tarea';
-        else if (hasB) origin = 'observacion';
-
+        // Logic for context
         finalContext = {
             observacion: contextInput.observacion,
             tareaNombre: contextInput.tareaNombre,
             tareaTexto: contextInput.tareaTexto,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            originDetail: 'mixed' // Legacy origin adaptation
         };
+        origin = 'manual';
+    }
+
+    // Map to Unified MissionStep
+    const missionId = `mission-${Date.now()}`;
+    const missionSteps: MissionStep[] = ejerciciosSeleccionados.map((ej, index) => ({
+        id: ej.id, // Or generate new ID
+        mission_id: missionId,
+        step_index: index,
+        type: 'exercise',
+        status: 'pendiente',
+        content: {
+            question: ej.enunciado,
+            correctAnswer: ej.respuestaEsperada,
+            topic: ej.tema,
+            hint: ej.pista,
+            difficulty: 'adaptative'
+        }
+    }));
+
+    // Add extra context if needed for MotorRouter
+    if (config.motorId) {
+        if (!finalContext) finalContext = {};
+        finalContext.recommendedMotorId = config.motorId;
     }
 
     const plan: MissionPlan = {
-        missionId: `mission-${Date.now()}`,
-        grade: config.grade,
-        topic: temaSeleccionado,
-        exercises: ejerciciosSeleccionados,
-        origin: origin,
-        context: finalContext,
-        recommendedMotorId: config.motorId,
-        nEjercicios: n
+        id: missionId,
+        student_id: userId,
+        date_key: new Date().toISOString().split('T')[0],
+        type: 'practica',
+        status: 'creada',
+        origin: origin, // 'ai' | 'manual'
+        title: config.topic || 'Práctica',
+        description: 'Misión generada localmente',
+        mission_steps: missionSteps,
+        context: finalContext
     };
 
     // 4. Persistir evento 'mision_generada'
@@ -102,9 +128,9 @@ export const buildMissionPlan = (
         payload: {
             origin: plan.origin,
             context: plan.context,
-            missionId: plan.missionId,
-            topic: plan.topic,
-            grade: plan.grade,
+            missionId: plan.id,
+            topic: plan.title,
+            grade: config.grade, // Pass grade if needed in context
             nEjercicios: n
         }
     });
