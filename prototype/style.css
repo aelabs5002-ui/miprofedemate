@@ -1,0 +1,76 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #F8F9FA;
+  color: #212529;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+/* Desktop Fix: Device Frame */
+@media (min-width: 450px) {
+  body {
+    /* Mission Control Gradient: Dark Navy */
+    background: linear-gradient(180deg, #070B14 0%, #0A1222 45%, #0E1B2F 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    /* Prevent body scroll */
+    position: relative;
+  }
+
+  /* Subtle Grid Pattern */
+  body::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    /* Grid Lines: White approx 6% opacity */
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+
+  #root {
+    width: 390px;
+    /* iPhone Width */
+    height: 95vh;
+    /* Max viewport height */
+    max-height: 844px;
+    /* iPhone Height Limit */
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    /* Softer shadow + border ring */
+    border: none;
+    overflow: hidden;
+    /* Clip everything */
+    background: #FFFFFF;
+    /* Ensure frame opacity */
+    /* TRICK: Creates a new containing block for fixed positioning (Keyboard) */
+    transform: translateZ(0);
+  }
+}
