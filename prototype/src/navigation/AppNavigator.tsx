@@ -15,35 +15,59 @@ import { MissionService } from '../servicios/MissionService';
 import PadreBibliotecaTutorScreen from '../screens/PadreBibliotecaTutorScreen';
 import PanelAlumnoScreen from '../screens/PanelAlumnoScreen';
 
-/**
- * Navegador principal de la aplicación (Bloque C1).
- * Implementa Bottom Tab Bar con 4 pestañas: Misión, Entrenar, Progreso, Perfil.
- */
+import { supabase } from '../lib/supabaseClient';
+import StudentSelectionScreen from '../screens/StudentSelectionScreen';
+
+// ... imports remain the same
+
 const AppNavigator: React.FC = () => {
   const { sesion } = useApp();
   const [rutaActual, setRutaActual] = useState('Misión');
   const [vistaAuth, setVistaAuth] = useState<'Login' | 'Registro'>('Login');
 
+  // Supabase Auth State
+  const [supabaseSession, setSupabaseSession] = useState<any>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
+  // Check Supabase Session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSupabaseSession(session);
+      setLoadingAuth(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Navigation Stacks/Modals
   const [mostrarSubirTarea, setMostrarSubirTarea] = useState(false);
   const [mostrarPadres, setMostrarPadres] = useState(false);
-  const [mostrarAlumno, setMostrarAlumno] = useState(false);
-  const [mostrarBiblioteca, setMostrarBiblioteca] = useState(false);
+  // ... other states
 
-  // C5 States
-  const [idMisionCreando, setIdMisionCreando] = useState<string | null>(null);
-  const [errorMision, setErrorMision] = useState<MissionBuildStatus | null>(null);
+  // --- RENDERING AUTH FLOW ---
 
-  const [sessionPlan, setSessionPlan] = useState<MissionPlan | null>(null);
+  if (loadingAuth) {
+    return <div style={{ color: 'white', padding: 20 }}>Cargando sesión...</div>;
+  }
 
-  // Flujo de Autenticación
-  if (!sesion.estaAutenticado) {
+  // 1. Si no hay sesión de Supabase (Padre), mostrar Login/Registro
+  if (!supabaseSession) {
     return vistaAuth === 'Login'
       ? <LoginScreen alIrARegistro={() => setVistaAuth('Registro')} />
       : <RegisterScreen alIrALogin={() => setVistaAuth('Login')} />;
   }
 
-  // --- Navigación ---
+  // 2. Si hay sesión de Padre pero NO se ha elegido Alumno (Contexto App vacío), mostrar Selección
+  if (supabaseSession && !sesion.estaAutenticado) {
+    return <StudentSelectionScreen />;
+  }
+
+  // 3. Si hay Alumno seleccionado, mostrar App Principal
+
 
   const irASubirTarea = () => {
     setMostrarSubirTarea(true);

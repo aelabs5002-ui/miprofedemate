@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { MissionPlan, MissionRequest, AnswerResponse } from '../types/missionTypes';
 
-// Initialize Supabase Client (Replace these with Env Vars in real app)
-// For MVP we hardcode or assume global env. 
-// User provided no env, so we assume they will add it or we use placeholder.
-// Ideally should be import.meta.env.VITE_SUPABASE_URL etc.
-// Assuming standard Vite env vars
-const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://YOUR_PROJECT_REF.supabase.co';
-const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY';
+// Configuración API Backend (Proxy manual)
+const API_BASE = 'http://localhost:3001/api';
+
+// Mantener Supabase client para otras cosas si es necesario (ej. Auth directo si no pasa por backend)
+// Pero idealmente todo pasa por nuestra API ahora.
+// Dejamos la config de supabase client por compatibilidad con código existente que lo use.
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'placeholder';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -16,55 +17,61 @@ export const edgeApi = {
      * Syncs mission: Gets existing or creates new one.
      */
     async missionSync(studentId: string, dateKey: string, type: 'tarea' | 'practica'): Promise<MissionPlan> {
-        const { data, error } = await supabase.functions.invoke('mission_sync', {
-            body: { studentId, dateKey, type }
-        });
-
-        if (error) throw error;
-        return data as MissionPlan;
+        // Fallback a MissionService o implementación directa si se usa en C5
+        // Por ahora redirigimos al backend build si se usa
+        console.warn('Deprecated edgeApi.missionSync called - use MissionService');
+        throw new Error('Use MissionService');
     },
 
     /**
      * Starts the session (marks mission in progress).
      */
     async sessionStart(missionId: string, studentId: string): Promise<any> {
-        const { data, error } = await supabase.functions.invoke('session_start', {
-            body: { missionId, studentId }
-        });
-        if (error) throw error;
-        return data;
+        // TODO: Implementar endpoint backend?
+        console.log('Session start:', missionId);
+        return { success: true };
     },
 
     /**
-     * Gets next exercise.
+     * Gets next exercise. (Managed by local state in current architecture)
      */
     async exerciseNext(missionId: string, studentId: string): Promise<any> {
-        const { data, error } = await supabase.functions.invoke('exercise_next', {
-            body: { missionId, studentId }
-        });
-        if (error) throw error;
-        return data;
+        return {};
     },
 
     /**
      * Submits answer.
+     * Ahora redirige al Backend Node.js /api/tutor/step
      */
-    async answerSubmit(missionId: string, stepId: string, studentId: string, answer: string): Promise<AnswerResponse> {
-        const { data, error } = await supabase.functions.invoke('answer_submit', {
-            body: { missionId, stepId, studentId, answer }
-        });
-        if (error) throw error;
-        return data as AnswerResponse;
+    async answerSubmit(missionId: string, stepId: string, studentId: string, answer: string, content?: any): Promise<AnswerResponse | any> {
+
+        try {
+            const response = await fetch(`${API_BASE}/tutor/step`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    missionId,
+                    stepId,
+                    studentId,
+                    studentAnswer: answer,
+                    content // Pasamos content si está disponible para contexto
+                })
+            });
+
+            if (!response.ok) throw new Error('Error en tutor step');
+            return await response.json();
+
+        } catch (e) {
+            console.error('Error submitting answer:', e);
+            throw e;
+        }
     },
 
     /**
      * Upload placeholder
      */
     async uploadAnalyze(file: any): Promise<any> {
-        const { data, error } = await supabase.functions.invoke('upload_analyze', {
-            body: { file } // passing file object directly might not work without FormData, but for placeholder is fine
-        });
-        if (error) throw error;
-        return data;
+        // TODO: Backend upload endpoint
+        return { text: "Simulated text" };
     }
 };

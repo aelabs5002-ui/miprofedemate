@@ -10,88 +10,73 @@ interface Props {
  * Entrypoint principal con persistencia y healthcheck.
  */
 const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
-  const { iniciarSesion } = useApp();
+  // NOTA: 'iniciarSesion' del context ahora se usará DESPUÉS de seleccionar alumno.
+  // Aquí solo gestionamos la Auth del PADRE.
 
-  // Estados de campos
-  const [usuario, setUsuario] = useState('');
-  const [clave, setClave] = useState('');
-  const [mostrarClave, setMostrarClave] = useState(false);
+  // Estados
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [errorLogin, setErrorLogin] = useState<string | null>(null);
 
-  // Estado de conectividad (No bloqueante)
+  // Estado de conectividad
   const [isOnline, setIsOnline] = useState(false);
 
-  // 1. Cargar datos guardados y verificar estado al montar
   useEffect(() => {
-    // Healthcheck logic
-    const checkHealth = async () => {
-      try {
-        const r1 = await fetch('/api/health'); // Intento 1
-        if (r1.ok) { setIsOnline(true); return; }
-        const r2 = await fetch('/health'); // Intento 2
-        if (r2.ok) { setIsOnline(true); return; }
-        setIsOnline(false);
-      } catch (e) {
-        setIsOnline(false); // Fallo de red = Offline
-      }
-    };
-    checkHealth();
+    // Basic connectivity check
+    fetch('/api/health').then(r => r.ok && setIsOnline(true)).catch(() => setIsOnline(false));
 
-    // Cargar credenciales
-    const savedUser = localStorage.getItem('tpdm_usuario');
-    const savedPass = localStorage.getItem('tpdm_clave');
-    if (savedUser) setUsuario(savedUser);
-    if (savedPass) setClave(savedPass);
+    // Check if already logged in as Parent (Supabase Session)
+    // If yes, we should redirect to Student Selection (managed by parent component or navigator)
+    // For now, we rely on the user explicit action or App wrapper handling session.
   }, []);
 
-  // 2. Guardado automático al escribir
-  const handleUserChange = (val: string) => {
-    setUsuario(val);
-    localStorage.setItem('tpdm_usuario', val);
-    if (errorLogin) setErrorLogin(null);
-  };
-
-  const handlePassChange = (val: string) => {
-    setClave(val);
-    localStorage.setItem('tpdm_clave', val);
-    if (errorLogin) setErrorLogin(null);
-  };
-
-  // 3. Main Action
-  const manejarLogin = (e: React.FormEvent) => {
+  const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setErrorLogin(null);
+    setMessage(null);
 
-    // Validaciones inline
-    if (!usuario || usuario.length < 3) {
-      setErrorLogin('El usuario es obligatorio (mín. 3 caracteres).');
+    if (!email.includes('@')) {
+      setErrorLogin('Ingresa un correo válido.');
+      setLoading(false);
       return;
     }
-    if (!clave) {
-      setErrorLogin('Por favor ingresa tu clave.');
-      return;
-    }
 
-    // Iniciar Sesión -> Esto actualiza el contexto y AppNavigator cambia a MisionScreen
-    iniciarSesion({
-      id: 'usr_123',
-      nombre: usuario,
-      correo: usuario + '@tutor.com',
-      rol: 'Alumno'
-    });
+    try {
+      // Import dinámico para asegurar que lib existe
+      const { supabase } = await import('../lib/supabaseClient');
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          // Redirigir a la misma URL base. El App debe detectar el hash de supabase.
+          emailRedirectTo: window.location.origin
+        }
+      });
+
+      if (error) throw error;
+
+      setMessage('¡Enlace enviado! Revisa tu correo para entrar.');
+
+    } catch (err: any) {
+      console.error(err);
+      setErrorLogin(err.message || 'Error al enviar enlace.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div style={styles.pageContainer}>
-      {/* Fondo Ambiental */}
       <div style={styles.ambientBackground}>
         <div style={styles.gridPattern} />
         <div style={styles.glowTopRight} />
         <div style={styles.glowBottomLeft} />
       </div>
 
-      {/* Header (Status Only, No Back Button) */}
       <nav style={styles.navBar}>
-        <div /> {/* Spacer vacio a la izquierda */}
+        <div />
         <div style={{ ...styles.statusBadge, borderColor: isOnline ? 'rgba(0, 255, 157, 0.5)' : 'rgba(107, 114, 128, 0.5)' }}>
           <span style={{ ...styles.statusDot, backgroundColor: isOnline ? '#00ff9d' : '#6B7280', boxShadow: isOnline ? '0 0 8px #00ff9d' : 'none' }} />
           <span style={{ ...styles.statusText, color: isOnline ? 'rgba(0, 255, 157, 0.8)' : '#9CA3AF' }}>
@@ -101,109 +86,69 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
       </nav>
 
       <div style={styles.scrollContainer}>
-        {/* Sección Hero / Mentor */}
         <div style={styles.heroSection}>
           <div style={styles.avatarContainer}>
-            {/* IMAGEN MENTOR */}
             <div style={styles.mentorImageWrapper}>
-              <img
-                src="/images/mentor_login.png"
-                alt="Mentor"
-                style={styles.mentorImage}
-              />
+              <img src="/images/mentor_login.png" alt="Mentor" style={styles.mentorImage} />
             </div>
           </div>
 
           <div style={styles.titleWrapper}>
             <h1 style={styles.mainTitle}>
-              ÚNETE AL <br />
-              <span style={styles.highlightText}>ESCUADRÓN</span>
+              ACCESO <br />
+              <span style={styles.highlightText}>PADRES</span>
             </h1>
             <p style={styles.subtitle}>
-              Domina las matemáticas. Sube de nivel. Tu misión comienza ahora.
+              Gestiona el aprendizaje de tus hijos. Ingresa con tu correo.
             </p>
           </div>
         </div>
 
-        {/* Formulario de Misión */}
-        <form onSubmit={manejarLogin} style={styles.formContainer}>
-
-          {/* Campo: USUARIO */}
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>USUARIO</label>
-            <div style={styles.inputWrapper}>
-              <input
-                type="text"
-                placeholder="Ingresa tu usuario"
-                value={usuario}
-                onChange={(e) => handleUserChange(e.target.value)}
-                style={styles.input}
-                className="input-glow"
-              />
-              <div style={styles.inputIconRight}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="12" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+        {!message ? (
+          <form onSubmit={handleMagicLink} style={styles.formContainer}>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>CORREO ELECTRÓNICO</label>
+              <div style={styles.inputWrapper}>
+                <input
+                  type="email"
+                  placeholder="padre@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={styles.input}
+                  disabled={loading}
+                />
               </div>
             </div>
+
+            {errorLogin && (
+              <div style={styles.errorMsg}>
+                <span>{errorLogin}</span>
+              </div>
+            )}
+
+            <button type="submit" style={styles.primaryButton} disabled={loading}>
+              <span>{loading ? 'ENVIANDO...' : 'ENVIAR ENLACE MÁGICO'}</span>
+            </button>
+          </form>
+        ) : (
+          <div style={{ ...styles.formContainer, alignItems: 'center', textAlign: 'center' }}>
+            <div style={{ fontSize: '40px' }}>✉️</div>
+            <h3 style={{ color: '#00ff9d' }}>{message}</h3>
+            <p style={{ color: '#ccc', fontSize: '14px' }}>Puedes cerrar esta pestaña y usar el enlace recibido.</p>
+            <button onClick={() => setMessage(null)} style={{ ...styles.primaryButton, backgroundColor: '#2a3b68', color: '#fff' }}>
+              VOLVER
+            </button>
           </div>
+        )}
 
-          {/* Campo: CLAVE */}
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>CLAVE</label>
-            <div style={styles.inputWrapper}>
-              <input
-                type={mostrarClave ? "text" : "password"}
-                placeholder="Ingresa tu clave"
-                value={clave}
-                onChange={(e) => handlePassChange(e.target.value)}
-                style={styles.input}
-              />
-              <button
-                type="button"
-                onClick={() => setMostrarClave(!mostrarClave)}
-                style={styles.eyeButton}
-              >
-                {mostrarClave ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" /><line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Mensaje de Error Inline */}
-          {errorLogin && (
-            <div style={styles.errorMsg}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-              <span>{errorLogin}</span>
-            </div>
-          )}
-
-          {/* CTA Principal */}
-          <button type="submit" style={styles.primaryButton}>
-            <span>INICIAR MISIÓN</span>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 8 }}>
-              <path d="M13.13 22.19L11 21.06L3.93 17.5L2.5 13.93L4.9 12.53L10.5 15.24L12.06 13.68L9.36 10.97L11.5 5.5L15.06 6.94L18.63 4.81L21.43 14.75L13.13 22.19ZM13.89 12.63L13.18 13.34L8.71 11.18L6.44 12.5L5.73 13.21L6.44 14.97L12.47 18.03L18.84 12.31L16.71 5.97L13.88 7.38L11.75 6.67L10.3 8.12L13.89 12.63ZM19 1.5C18.59 1.5 18.25 1.84 18.25 2.25C18.25 2.66 18.59 3 19 3H20.5V4.5C20.5 4.91 20.84 5.25 21.25 5.25C21.66 5.25 22 4.91 22 4.5V3H23.5C23.91 3 24.25 2.66 24.25 2.25C24.25 1.84 23.91 1.5 23.5 1.5H22V0C22 -0.41 21.66 -0.75 21.25 -0.75C20.84 -0.75 20.5 -0.41 20.5 0V1.5H19Z" />
-            </svg>
-          </button>
-
-        </form>
-
-        {/* Footer */}
         <div style={styles.footer}>
           <p style={styles.footerText}>
-            ¿No eres miembro del escuadrón?
-            <br />
-            <span onClick={alIrARegistro} style={styles.linkRegister}>REGÍSTRATE AQUÍ</span>
+            No se requiere contraseña. Usamos Magic Links para máxima seguridad.
           </p>
           <p style={styles.buildIdText}>
             build: {import.meta.env.VITE_BUILD_ID || 'dev'}
           </p>
         </div>
-
       </div>
     </div>
   );

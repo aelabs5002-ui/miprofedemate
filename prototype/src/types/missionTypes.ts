@@ -5,6 +5,8 @@ export interface MissionRequest {
     studentId: string;
     dateKey: string;
     type: 'tarea' | 'practica';
+    grade?: string;  // Optional: "1sec", "2prim", etc.
+    topics?: string[]; // Optional: ["fracciones", "geometria"]
 }
 
 export interface StepContent {
@@ -62,4 +64,26 @@ export interface MissionBuildStatus {
     retryable?: boolean;
     step?: string;
     state?: string; // Legacy support
+}
+
+// ------------------------------------
+// AI CORE TYPES (Strict JSON Contract)
+// ------------------------------------
+
+export interface TutorStepRequest {
+    studentId: string;
+    missionId: string;
+    stepId: string;
+    content: StepContent;       // The problem being solved
+    studentAnswer: string;      // What the student wrote/selected
+    history?: any[];            // Previous interactions in this step
+    grade?: string;             // Context
+}
+
+export interface TutorStepResponse {
+    feedback: string;           // Explanation or hint
+    nextAction: 'try_again' | 'hint' | 'next_step' | 'explain_more';
+    isCorrect: boolean;
+    // Minimal metadata for frontend logic
+    suggestedHint?: string;
 }

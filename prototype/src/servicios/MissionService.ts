@@ -1,5 +1,7 @@
-import { buildMissionPlan, ContextInput } from './motorMision';
 import { MissionRequest, MissionBuildStatus, MissionPlan } from '../types/missionTypes';
+
+// Configuración API
+const API_BASE = 'http://localhost:3001/api';
 
 const STORAGE_KEY = 'missions_db_v1';
 
@@ -30,34 +32,27 @@ const saveDb = (db: Record<string, MissionRecord>) => {
 
 export const MissionService = {
     /**
-     * Inicia la creación de una misión (asíncrono).
-     * Retorna estado 'creating' inmediato.
+     * Inicia la creación de una misión (asíncrono via API).
+     * Retorna estado 'creating' inmediato y lanza el fetch en background.
      */
     buildMissionAsync: async (request: MissionRequest): Promise<MissionBuildStatus> => {
-        // 1. Deduplicación diaria: Buscar si ya existe para (studentId + dateKey)
-        const db = getDb();
-        const existingId = Object.keys(db).find(key => {
-            const r = db[key];
-            return r.request.studentId === request.studentId &&
-                r.request.dateKey === request.dateKey &&
-                r.status.state !== 'error'; // Si dio error, permitimos reintentar creando una nueva si se quiere, o reusar la fallida. 
-            // Pero la logica general es: si ya hay una "activa" o "lista" para hoy, retornamos esa.
-        });
+        // 1. Deduplicación (Opcional: si ya existe para hoy, devolverla)
+        // Por ahora, siempre creamos nueva o dejamos que el backend maneje lógica si quisiéramos.
+        // Mantenemos lógica local de no re-crear inmediatamente si ya hay una "creando".
 
-        if (existingId) {
-            console.log('Misión existente encontrada:', existingId);
-            return db[existingId].status;
-        }
+        const missionId = `m-${Date.now()}`; // ID temporal/tracking client-side
+        // Nota: El backend generará el ID definitivo (UUID) que vendrá en el plan.
+        // Pero usamos este ID para trackear el estado de la solicitud en el cliente.
 
-        const missionId = `m-${Date.now()}`; // Generar ID único
         const initialStatus: MissionBuildStatus = {
             missionId,
             studentId: request.studentId,
             state: 'creating',
-            message: request.type === 'task' ? 'Analizando tu tarea...' : 'Analizando tu memoria...',
-            progressPct: 10
+            message: request.type === 'task' ? 'Enviando tarea al tutor IA...' : 'Analizando perfil con IA...',
+            progressPct: 5
         };
 
+        const db = getDb();
         db[missionId] = {
             status: initialStatus,
             request,
@@ -65,8 +60,8 @@ export const MissionService = {
         };
         saveDb(db);
 
-        // Disparar proceso en "background"
-        processMissionBackground(missionId, request);
+        // Disparar proceso real en background
+        triggerBackendBuild(missionId, request);
 
         return initialStatus;
     },
@@ -77,16 +72,14 @@ export const MissionService = {
     retryMission: async (missionId: string): Promise<void> => {
         const db = getDb();
         const record = db[missionId];
-        if (!record) {
-            throw new Error('Misión no encontrada para reintentar');
-        }
+        if (!record) throw new Error('Misión no encontrada');
 
         // Reset status
         const newStatus: MissionBuildStatus = {
             ...record.status,
             state: 'creating',
-            message: 'Reintentando...',
-            progressPct: 10,
+            message: 'Reintentando conexión con IA...',
+            progressPct: 5,
             retryable: false,
             errorCode: undefined
         };
@@ -95,7 +88,7 @@ export const MissionService = {
         saveDb(db);
 
         // Reiniciar proceso
-        processMissionBackground(missionId, record.request);
+        triggerBackendBuild(missionId, record.request);
     },
 
     /**
@@ -105,13 +98,11 @@ export const MissionService = {
         const db = getDb();
         const record = db[missionId];
         if (!record) {
-            // Si no existe, podría ser un error o expirado. 
-            // Retornamos error genérico.
             return {
                 missionId,
                 studentId: 'unknown',
                 state: 'error',
-                message: 'Misión no encontrada o expirada',
+                message: 'Misión no encontrada',
                 retryable: false
             };
         }
@@ -129,67 +120,53 @@ export const MissionService = {
     },
 
     /**
-     * Actualiza el estado de la misión (ej. al iniciar Tutor).
+     * Actualiza el estado de la misión
      */
     updateMissionState: async (missionId: string, newState: MissionBuildStatus['state']): Promise<void> => {
-        updateStatus(missionId, { state: newState });
+        const db = getDb();
+        if (db[missionId]) {
+            db[missionId].status.state = newState;
+            saveDb(db);
+        }
     }
 };
 
 
-// --- Background Simulator ---
+// --- Backend Trigger ---
 
-async function processMissionBackground(missionId: string, request: MissionRequest) {
-    // Fase 1: Análisis
-    await delay(1500);
+async function triggerBackendBuild(tempMissionId: string, request: MissionRequest) {
+    // Simulamos progreso inicial visual
+    updateStatus(tempMissionId, { progressPct: 10 });
 
-    // Simular error aleatorio (opcional, para probar flujo error)
-    // if (Math.random() > 0.9) {
-    //    updateStatus(missionId, { state: 'error', message: 'No pudimos leer el archivo.', errorCode: 'OCR_FAIL', retryable: true });
-    //    return;
-    // }
-
-    if (request.type === 'task') {
-        updateStatus(missionId, { message: 'Identificando ejercicios...', progressPct: 40 });
-        await delay(1500);
-        updateStatus(missionId, { message: 'Comprendiendo el tema...', progressPct: 70 });
-        await delay(1500);
-    } else {
-        updateStatus(missionId, { message: 'Revisando tus temas recientes...', progressPct: 50 });
-        await delay(1200);
-    }
-
-    // Fase 2: Construcción (llamada al motor)
     try {
-        updateStatus(missionId, { message: 'Generando retos a tu medida...', progressPct: 90 });
-        await delay(800);
+        // Llamada al Backend Real
+        const response = await fetch(`${API_BASE}/mission/build`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request)
+        });
 
-        // Construir input para motor
-        const contextInput: ContextInput = {
-            observacion: request.input?.text
-        };
-
-        if (request.type === 'task') {
-            // Simulamos OCR exitoso
-            contextInput.tareaNombre = request.input?.fileUrl || 'archivo.pdf';
-            contextInput.tareaTexto = 'Texto simulado extraído de la tarea...';
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Error ${response.status}`);
         }
 
-        const plan = buildMissionPlan(request.studentId, { grade: '1sec', nEjercicios: 5 }, contextInput);
+        const plan: MissionPlan = await response.json();
 
-        // Forzar ID coincidente y asegurar consistencia
-        plan.missionId = missionId;
+        // Éxito
+        updateStatus(tempMissionId, {
+            state: 'ready',
+            message: '¡Misión lista!',
+            progressPct: 100
+        }, plan);
 
-        // Guardar resultado
-        updateStatus(missionId, { state: 'ready', message: '¡Misión lista!', progressPct: 100 }, plan);
-
-    } catch (e) {
-        console.error(e);
-        updateStatus(missionId, {
+    } catch (error: any) {
+        console.error('Mission Gen Error:', error);
+        updateStatus(tempMissionId, {
             state: 'error',
-            message: 'Error interno al generar misión.',
+            message: 'Error al generar misión: ' + error.message,
             retryable: true,
-            errorCode: 'ENGINE_FAIL'
+            errorCode: 'API_FAIL'
         });
     }
 }
@@ -202,5 +179,3 @@ function updateStatus(missionId: string, updates: Partial<MissionBuildStatus>, p
         saveDb(db);
     }
 }
-
-function delay(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
