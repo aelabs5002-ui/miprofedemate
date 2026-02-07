@@ -145,9 +145,11 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
           <p style={styles.footerText}>
             No se requiere contraseña. Usamos Magic Links para máxima seguridad.
           </p>
-          <p style={styles.buildIdText}>
-            build: {import.meta.env.VITE_BUILD_ID || 'dev'}
-          </p>
+          {/* FIX-01: Build ID visible para auditoría */}
+          <div style={styles.buildIdContainer}>
+            <span style={styles.buildIdLabel}>BUILD:</span>
+            <span style={styles.buildIdValue}>{import.meta.env.VITE_BUILD_ID || 'loading...'}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -156,12 +158,27 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
 
 // --- ESTILOS NEON / FUTURISTAS ---
 const styles = {
-  buildIdText: {
+  buildIdContainer: {
+    marginTop: '16px',
+    padding: '4px 8px',
+    border: '1px solid rgba(107, 114, 128, 0.3)',
+    borderRadius: '4px',
+    display: 'inline-flex',
+    gap: '6px',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  buildIdLabel: {
     fontSize: '10px',
     color: '#6B7280',
-    marginTop: '12px',
     fontFamily: 'monospace',
-    opacity: 0.7,
+    fontWeight: 'bold',
+    textTransform: 'uppercase' as const,
+  },
+  buildIdValue: {
+    fontSize: '10px',
+    color: '#9CA3AF',
+    fontFamily: 'monospace',
   },
   pageContainer: {
     minHeight: '100vh',
