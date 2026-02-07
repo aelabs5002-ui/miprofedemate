@@ -21,7 +21,8 @@ ENV VITE_BUILD_ID=$VITE_BUILD_ID
 
 # Build
 # Si VITE_BUILD_ID viene vacio, vite.config.ts intentará git o date
-RUN npm run build
+# Clean previous build and run build script
+RUN rm -rf dist && npm run build
 
 # Stage 2: Serve
 FROM nginx:alpine
