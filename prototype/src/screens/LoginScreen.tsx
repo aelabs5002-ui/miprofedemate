@@ -145,11 +145,12 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
           <p style={styles.footerText}>
             No se requiere contraseña. Usamos Magic Links para máxima seguridad.
           </p>
-          {/* FIX-01: Build ID visible para auditoría */}
-          <div style={styles.buildIdContainer}>
-            <span style={styles.buildIdLabel}>BUILD:</span>
-            <span style={styles.buildIdValue}>{import.meta.env.VITE_BUILD_ID || 'loading...'}</span>
-          </div>
+        </div>
+
+        {/* FIX-01: Build ID visible (Fixed Position) */}
+        <div style={styles.buildIdFixed}>
+          <span style={styles.buildIdLabel}>BUILD:</span>
+          <span style={styles.buildIdValue}>{import.meta.env.VITE_BUILD_ID || 'loading...'}</span>
         </div>
       </div>
     </div>
@@ -158,15 +159,18 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
 
 // --- ESTILOS NEON / FUTURISTAS ---
 const styles = {
-  buildIdContainer: {
-    marginTop: '16px',
+  buildIdFixed: {
+    position: 'absolute' as const,
+    bottom: '12px',
+    left: '12px',
+    zIndex: 100,
+    opacity: 0.5,
     padding: '4px 8px',
-    border: '1px solid rgba(107, 114, 128, 0.3)',
     borderRadius: '4px',
-    display: 'inline-flex',
+    display: 'flex',
     gap: '6px',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    pointerEvents: 'none' as const, // Para que no bloquee clicks si se solapa con algo
   },
   buildIdLabel: {
     fontSize: '10px',
