@@ -15,8 +15,9 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
 
   // Estados
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [errorLogin, setErrorLogin] = useState<string | null>(null);
 
   // Estado de conectividad
@@ -25,43 +26,36 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
   useEffect(() => {
     // Basic connectivity check
     fetch('/api/health').then(r => r.ok && setIsOnline(true)).catch(() => setIsOnline(false));
-
-    // Check if already logged in as Parent (Supabase Session)
-    // If yes, we should redirect to Student Selection (managed by parent component or navigator)
-    // For now, we rely on the user explicit action or App wrapper handling session.
   }, []);
 
-  const handleMagicLink = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorLogin(null);
-    setMessage(null);
 
-    if (!email.includes('@')) {
-      setErrorLogin('Ingresa un correo válido.');
+    if (!email.includes('@') || !password) {
+      setErrorLogin('Ingresa correo y contraseña.');
       setLoading(false);
       return;
     }
 
     try {
-      // Import dinámico para asegurar que lib existe
       const { supabase } = await import('../lib/supabaseClient');
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          // Redirigir a la misma URL base. El App debe detectar el hash de supabase.
-          emailRedirectTo: window.location.origin
-        }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
 
       if (error) throw error;
 
-      setMessage('¡Enlace enviado! Revisa tu correo para entrar.');
+      // La redirección/estado se maneja globalmente por onAuthStateChange en AppNavigator/Context
 
     } catch (err: any) {
       console.error(err);
-      setErrorLogin(err.message || 'Error al enviar enlace.');
+      setErrorLogin(err.message === 'Invalid login credentials'
+        ? 'Credenciales incorrectas.'
+        : (err.message || 'Error al iniciar sesión.'));
     } finally {
       setLoading(false);
     }
@@ -99,52 +93,67 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
               <span style={styles.highlightText}>PADRES</span>
             </h1>
             <p style={styles.subtitle}>
-              Gestiona el aprendizaje de tus hijos. Ingresa con tu correo.
+              Gestiona el aprendizaje de tus hijos. Ingresa con tu correo y contraseña.
             </p>
           </div>
         </div>
 
-        {!message ? (
-          <form onSubmit={handleMagicLink} style={styles.formContainer}>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>CORREO ELECTRÓNICO</label>
-              <div style={styles.inputWrapper}>
-                <input
-                  type="email"
-                  placeholder="padre@ejemplo.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={styles.input}
-                  disabled={loading}
-                />
-              </div>
+        <form onSubmit={handleLogin} style={styles.formContainer}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>CORREO ELECTRÓNICO</label>
+            <div style={styles.inputWrapper}>
+              <input
+                type="email"
+                placeholder="padre@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={styles.input}
+                disabled={loading}
+              />
             </div>
-
-            {errorLogin && (
-              <div style={styles.errorMsg}>
-                <span>{errorLogin}</span>
-              </div>
-            )}
-
-            <button type="submit" style={styles.primaryButton} disabled={loading}>
-              <span>{loading ? 'ENVIANDO...' : 'ENVIAR ENLACE MÁGICO'}</span>
-            </button>
-          </form>
-        ) : (
-          <div style={{ ...styles.formContainer, alignItems: 'center', textAlign: 'center' }}>
-            <div style={{ fontSize: '40px' }}>✉️</div>
-            <h3 style={{ color: '#00ff9d' }}>{message}</h3>
-            <p style={{ color: '#ccc', fontSize: '14px' }}>Puedes cerrar esta pestaña y usar el enlace recibido.</p>
-            <button onClick={() => setMessage(null)} style={{ ...styles.primaryButton, backgroundColor: '#2a3b68', color: '#fff' }}>
-              VOLVER
-            </button>
           </div>
-        )}
+
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>CONTRASEÑA</label>
+            <div style={styles.inputWrapper}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={styles.input}
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={styles.eyeButton}
+              >
+                {showPassword ? '👁️' : '🔒'}
+              </button>
+            </div>
+          </div>
+
+          {errorLogin && (
+            <div style={styles.errorMsg}>
+              <span>{errorLogin}</span>
+            </div>
+          )}
+
+          <button type="submit" style={styles.primaryButton} disabled={loading}>
+            <span>{loading ? 'INGRESANDO...' : 'INGRESAR'}</span>
+          </button>
+
+          <div style={{ textAlign: 'center', marginTop: '10px' }}>
+            <span style={{ color: '#6B7280', fontSize: '13px' }}>¿No tienes cuenta? </span>
+            <a onClick={alIrARegistro} style={styles.linkRegister}>
+              Regístrate aquí
+            </a>
+          </div>
+        </form>
 
         <div style={styles.footer}>
-          <p style={styles.footerText}>
-            No se requiere contraseña. Usamos Magic Links para máxima seguridad.
-          </p>
+          {/* Footer content removed or simplified */}
         </div>
       </div>
     </div>

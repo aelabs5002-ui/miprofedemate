@@ -20,7 +20,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-    const manejarRegistro = (e: React.FormEvent) => {
+    const manejarRegistro = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMsg(null);
         setSuccessMsg(null);
@@ -41,13 +41,32 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
             return;
         }
 
-        // Simular éxito de creación de cuenta
-        setSuccessMsg('¡Cuenta creada correctamente! Redirigiendo...');
+        try {
+            const { supabase } = await import('../lib/supabaseClient');
 
-        // Redirigir a Login después de breve delay (o inmediato)
-        setTimeout(() => {
-            alIrALogin();
-        }, 1500);
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        full_name: nombre,
+                    }
+                }
+            });
+
+            if (error) throw error;
+
+            setSuccessMsg('¡Cuenta creada! Por favor inicia sesión.');
+
+            // Redirigir a Login después de breve delay
+            setTimeout(() => {
+                alIrALogin();
+            }, 2000);
+
+        } catch (err: any) {
+            console.error(err);
+            setErrorMsg(err.message || 'Error al crear la cuenta.');
+        }
     };
 
     return (
