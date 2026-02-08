@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -46,7 +46,13 @@ const AppNavigator: React.FC = () => {
   // Navigation Stacks/Modals
   const [mostrarSubirTarea, setMostrarSubirTarea] = useState(false);
   const [mostrarPadres, setMostrarPadres] = useState(false);
-  // ... other states
+  const [mostrarAlumno, setMostrarAlumno] = useState(false);
+  const [mostrarBiblioteca, setMostrarBiblioteca] = useState(false);
+
+  // Mission & Session State
+  const [sessionPlan, setSessionPlan] = useState<MissionPlan | null>(null);
+  const [idMisionCreando, setIdMisionCreando] = useState<string | null>(null);
+  const [errorMision, setErrorMision] = useState<MissionBuildStatus | null>(null);
 
   // --- RENDERING AUTH FLOW ---
 
