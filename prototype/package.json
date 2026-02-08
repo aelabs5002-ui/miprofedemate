@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --mode dev",
     "build": "vite build",
-    "lint": "echo 'linted'"
+    "lint": "echo 'linted'",
+    "check:prod:l1": "bash ../scripts/deploy_check_level1.sh"
   },
   "keywords": [],
   "author": "",
