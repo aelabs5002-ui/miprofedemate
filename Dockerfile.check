@@ -1,0 +1,18 @@
+# Dockerfile for Deployment Check Service (Level 1)
+# Lightweight image to run validation scripts
+
+FROM alpine:latest
+
+# Install required tools
+RUN apk add --no-cache bash curl
+
+WORKDIR /app
+
+# Copy check script
+COPY scripts/deploy_check_level1.sh .
+
+# Ensure executable permissions
+RUN chmod +x deploy_check_level1.sh
+
+# Run check by default
+CMD ["bash", "deploy_check_level1.sh"]
