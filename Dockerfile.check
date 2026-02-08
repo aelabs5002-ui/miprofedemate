@@ -8,11 +8,11 @@ RUN apk add --no-cache bash curl
 
 WORKDIR /app
 
-# Copy check script
-COPY scripts/deploy_check_level1.sh .
+# Copy check script to scripts directory
+COPY scripts/deploy_check_level1.sh scripts/deploy_check_level1.sh
 
 # Ensure executable permissions
-RUN chmod +x deploy_check_level1.sh
+RUN chmod +x scripts/deploy_check_level1.sh
 
 # Run check by default
-CMD ["bash", "deploy_check_level1.sh"]
+CMD ["bash", "scripts/deploy_check_level1.sh"]
