@@ -15,14 +15,14 @@ RUN if [ -f pnpm-lock.yaml ]; then npm install -g pnpm && pnpm install; \
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_BUILD_ID
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_BUILD_ID=$VITE_BUILD_ID
 
 # Build
 # Si VITE_BUILD_ID viene vacio, vite.config.ts intentará git o date
-# Clean previous build and run build script
-RUN rm -rf dist && npm run build
+# Clean previous build and run build script with inline vars
+RUN VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_BUILD_ID=$VITE_BUILD_ID \
+    rm -rf dist && npm run build
 
 # Stage 2: Serve
 FROM nginx:alpine

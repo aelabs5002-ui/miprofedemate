@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 interface RegisterScreenProps {
     alIrALogin: () => void;
+    alIrAOtp: (email: string) => void;
 }
 
 /**
@@ -9,7 +10,7 @@ interface RegisterScreenProps {
  * Orientada al Padre/Representante.
  * Sin gamificación excesiva ni botón atrás.
  */
-const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
+const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp }) => {
     const [nombre, setNombre] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -18,12 +19,10 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
 
     // Estados de feedback
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
     const manejarRegistro = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMsg(null);
-        setSuccessMsg(null);
 
         // Validaciones básicas
         if (!nombre.trim() || !email.trim() || !password || !confirmPassword) {
@@ -56,12 +55,10 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
 
             if (error) throw error;
 
-            setSuccessMsg('¡Cuenta creada! Por favor inicia sesión.');
-
-            // Redirigir a Login después de breve delay
-            setTimeout(() => {
-                alIrALogin();
-            }, 2000);
+            // Éxito: Guardar email y navegar a OTP
+            // IMPORTANTE: Primero guardar en storage, luego navegar
+            localStorage.setItem('pending_signup_email', email);
+            alIrAOtp(email);
 
         } catch (err: any) {
             console.error(err);
@@ -184,13 +181,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                         <div style={styles.errorMsg}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                             <span>{errorMsg}</span>
-                        </div>
-                    )}
-
-                    {successMsg && (
-                        <div style={styles.successMsg}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                            <span>{successMsg}</span>
                         </div>
                     )}
 

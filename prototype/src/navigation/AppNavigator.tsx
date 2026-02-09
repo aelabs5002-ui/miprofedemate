@@ -14,30 +14,64 @@ import { MissionBuildStatus, MissionRequest, MissionPlan } from '../types/missio
 import { MissionService } from '../servicios/MissionService';
 import PadreBibliotecaTutorScreen from '../screens/PadreBibliotecaTutorScreen';
 import PanelAlumnoScreen from '../screens/PanelAlumnoScreen';
-
-import { supabase } from '../lib/supabaseClient';
+import OtpConfirmScreen from '../screens/OtpConfirmScreen';
 import StudentSelectionScreen from '../screens/StudentSelectionScreen';
 
-// ... imports remain the same
+import { supabase } from '../lib/supabaseClient';
 
 const AppNavigator: React.FC = () => {
   const { sesion } = useApp();
   const [rutaActual, setRutaActual] = useState('Misión');
-  const [vistaAuth, setVistaAuth] = useState<'Login' | 'Registro'>('Login');
+  const [vistaAuth, setVistaAuth] = useState<'Login' | 'Registro' | 'OTP'>('Login');
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   // Supabase Auth State
   const [supabaseSession, setSupabaseSession] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
+  // DEBUG FLAG
+  const DEBUG_AUTH = import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === '1';
+
   // Check Supabase Session
   useEffect(() => {
+    // Check for pending signup
+    const storedEmail = localStorage.getItem('pending_signup_email');
+    if (storedEmail) {
+      setPendingEmail(storedEmail);
+      setVistaAuth('OTP');
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+
+      if (DEBUG_AUTH) {
+        console.log('[AppNavigator] Init Session:', {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          storageKeys: Object.keys(localStorage).filter(k => k.toLowerCase().includes('supabase'))
+        });
+      }
+
       setSupabaseSession(session);
       setLoadingAuth(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+
+      if (DEBUG_AUTH) {
+        console.log('[AppNavigator] Auth Event:', event, {
+          hasSession: !!session,
+          userId: session?.user?.id
+        });
+      }
+
       setSupabaseSession(session);
+
+      // Si iniciamos sesión, limpiar el pending email
+      if (session) {
+        localStorage.removeItem('pending_signup_email');
+        setPendingEmail(null);
+        setVistaAuth('Login'); // Reset for next time
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -62,9 +96,46 @@ const AppNavigator: React.FC = () => {
 
   // 1. Si no hay sesión de Supabase (Padre), mostrar Login/Registro
   if (!supabaseSession) {
-    return vistaAuth === 'Login'
-      ? <LoginScreen alIrARegistro={() => setVistaAuth('Registro')} />
-      : <RegisterScreen alIrALogin={() => setVistaAuth('Login')} />;
+    if (DEBUG_AUTH && loadingAuth === false) {
+      console.log('[AppNavigator] Navigating to AUTH (Reason: No Session)');
+    }
+
+    // REGLA: Si existe email pendiente en localStorage, FORZAR pantalla OTP
+    const storedPendingEmail = localStorage.getItem('pending_signup_email');
+
+    if (storedPendingEmail) {
+      return <OtpConfirmScreen
+        email={storedPendingEmail}
+        alVolverALogin={() => {
+          localStorage.removeItem('pending_signup_email');
+          setPendingEmail(null);
+          setVistaAuth('Login');
+        }}
+      />;
+    }
+
+    // Si no hay pendiente, usar navegación normal state-based
+    if (vistaAuth === 'OTP' && pendingEmail) {
+      return <OtpConfirmScreen
+        email={pendingEmail}
+        alVolverALogin={() => {
+          localStorage.removeItem('pending_signup_email');
+          setPendingEmail(null);
+          setVistaAuth('Login');
+        }}
+      />;
+    }
+
+    return vistaAuth === 'Registro'
+      ? <RegisterScreen
+        alIrALogin={() => setVistaAuth('Login')}
+        alIrAOtp={(email) => {
+          localStorage.setItem('pending_signup_email', email); // Redundancy safety
+          setPendingEmail(email);
+          setVistaAuth('OTP');
+        }}
+      />
+      : <LoginScreen alIrARegistro={() => setVistaAuth('Registro')} />;
   }
 
   // 2. Si hay sesión de Padre pero NO se ha elegido Alumno (Contexto App vacío), mostrar Selección

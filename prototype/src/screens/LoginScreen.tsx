@@ -14,6 +14,11 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
   // Aquí solo gestionamos la Auth del PADRE.
 
   // Estados
+  // DEBUG FLAGS
+  const DEBUG_AUTH = import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === '1';
+  const DEBUG_AI = import.meta.env.DEV || import.meta.env.VITE_DEBUG_AI === '1';
+
+  // Estados
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,15 +28,77 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
   // Estado de conectividad
   const [isOnline, setIsOnline] = useState(false);
 
+  // AI Health Check State
+  const [aiHealth, setAiHealth] = useState<{ ok: boolean; status?: number; latencyMs?: number; msg?: string } | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+
   useEffect(() => {
-    // Basic connectivity check
-    fetch('/api/health').then(r => r.ok && setIsOnline(true)).catch(() => setIsOnline(false));
+    // Basic connectivity check (optional, if /api/health existed, but now removed per instruction)
+    // setIsOnline(true); 
+    // We can just set online to true or check navigator.onLine
+    setIsOnline(navigator.onLine);
+    window.addEventListener('online', () => setIsOnline(true));
+    window.addEventListener('offline', () => setIsOnline(false));
+    return () => {
+      window.removeEventListener('online', () => setIsOnline(true));
+      window.removeEventListener('offline', () => setIsOnline(false));
+    }
   }, []);
+
+  const maskEmail = (e: string) => {
+    if (!e || !e.includes('@')) return '***';
+    const [name, domain] = e.split('@');
+    return `${name.substring(0, 2)}***@${domain}`;
+  };
+
+  const testAI = async () => {
+    if (!DEBUG_AI) return;
+    setLoadingAi(true);
+    setAiHealth(null);
+    const start = Date.now();
+    try {
+      console.log('[AI-CHECK] Iniciando test de conectividad...');
+      // Intento 1: Supabase Functions Ping (Zero Cost - Validation Error Expected)
+      const { supabase } = await import('../lib/supabaseClient');
+
+      // Llamada intencionalmente vacía/inválida para provocar un 400 controlada
+      // Esto valida que llegamos al endpoint sin gastar tokens de IA
+      const { data, error } = await supabase.functions.invoke('mission-build', {
+        body: {} // Empty body should trigger validation error in Mission Builder
+      });
+
+      const latency = Date.now() - start;
+
+      // Si recibimos error de Supabase (network)
+      if (error) {
+        console.log('[AI-CHECK] Error invoking:', error);
+        setAiHealth({ ok: false, status: 500, latencyMs: latency, msg: error.message });
+        return;
+      }
+
+      // Si llegamos aquí, la función respondió. 
+      // Es probable que data contenga un error de validación "Missing studentId", etc.
+      // Eso CUENTA como éxito de conectividad.
+      console.log('[AI-CHECK] Response:', { data });
+      setAiHealth({ ok: true, status: 200, latencyMs: latency, msg: 'Connectivity OK (Validation response)' });
+
+    } catch (err: any) {
+      const latency = Date.now() - start;
+      console.error('[AI-CHECK] Exception:', err);
+      setAiHealth({ ok: false, status: 0, latencyMs: latency, msg: err.message });
+    } finally {
+      setLoadingAi(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorLogin(null);
+
+    if (DEBUG_AUTH) {
+      console.log("Attempting login for:", { email: maskEmail(email) });
+    }
 
     if (!email.includes('@') || !password) {
       setErrorLogin('Ingresa correo y contraseña.');
@@ -42,10 +109,18 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
     try {
       const { supabase } = await import('../lib/supabaseClient');
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
+
+      if (DEBUG_AUTH) {
+        console.log("Login result:", {
+          error: error?.message,
+          hasSession: !!data?.session,
+          userId: data?.session?.user?.id
+        });
+      }
 
       if (error) throw error;
 
@@ -155,6 +230,39 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
         <div style={styles.footer}>
           {/* Footer content removed or simplified */}
         </div>
+
+        {/* DEBUG PANEL */}
+        {(DEBUG_AI || DEBUG_AUTH) && (
+          <div style={{
+            marginTop: 20,
+            padding: 10,
+            border: '1px dashed #FFD700',
+            borderRadius: 8,
+            fontSize: 12,
+            color: '#FFD700',
+            backgroundColor: 'rgba(255, 215, 0, 0.05)'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: 5 }}>🔧 DEBUG PANEL</div>
+            {DEBUG_AI && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button type="button" onClick={testAI} disabled={loadingAi} style={{
+                  padding: '4px 8px', border: '1px solid #FFD700', background: 'transparent', color: '#FFD700', cursor: 'pointer'
+                }}>
+                  {loadingAi ? 'Probando...' : 'Test AI Connectivity'}
+                </button>
+                {aiHealth && (
+                  <span>
+                    {aiHealth.ok ? '✅ OK' : '❌ ERR'}
+                    {' '}({aiHealth.latencyMs}ms)
+                    {aiHealth.msg && ` - ${aiHealth.msg.substring(0, 50)}...`}
+                  </span>
+                )}
+              </div>
+            )}
+            {DEBUG_AUTH && <div style={{ marginTop: 5 }}>Auth Logs: ACTIVATED (Check Console)</div>}
+          </div>
+        )}
+
       </div>
     </div>
   );

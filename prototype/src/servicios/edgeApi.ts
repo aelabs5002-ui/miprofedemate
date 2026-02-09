@@ -1,16 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabaseClient';
 import { MissionPlan, MissionRequest, AnswerResponse } from '../types/missionTypes';
 
 // Configuración API Backend (Proxy manual)
 const API_BASE = 'http://localhost:3001/api';
 
-// Mantener Supabase client para otras cosas si es necesario (ej. Auth directo si no pasa por backend)
-// Pero idealmente todo pasa por nuestra API ahora.
-// Dejamos la config de supabase client por compatibilidad con código existente que lo use.
-const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'placeholder';
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export { supabase };
 
 export const edgeApi = {
     /**
