@@ -35,13 +35,15 @@ const OtpConfirmScreen: React.FC<OtpConfirmScreenProps> = ({ email, alVolverALog
                 type: 'signup'
             });
 
+            console.log('[OtpConfirm] verifyOtp result:', { data, error });
+
             if (error) throw error;
 
             // Éxito: La sesión se actualiza y AppNavigator gestionará el cambio de pantalla.
             setSuccessMsg('¡Cuenta confirmada! Iniciando sesión...');
 
-            // SOLO AQUÍ borramos el pending email
-            localStorage.removeItem('pending_signup_email');
+            // NOTA: No borramos pending_signup_email aquí. 
+            // Se borra en AppNavigator cuando detecta la sesión.
 
         } catch (err: any) {
             console.error(err);
