@@ -164,6 +164,9 @@ const StudentSelectionScreen: React.FC = () => {
                         >
                             + CREAR ESTUDIANTE
                         </button>
+                        <div style={styles.warningBox}>
+                            ⚠️ Modo Beta: Contacta a soporte para problemas.
+                        </div>
                     </div>
                 ) : (
                     <>
