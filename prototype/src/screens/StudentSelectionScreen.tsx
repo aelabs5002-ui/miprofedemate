@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useApp } from '../context/AppContext';
@@ -11,10 +10,7 @@ interface Student {
     avatar_url?: string;
 }
 
-interface AuthMeResponse {
-    user: { id: string; email: string };
-    students: Student[];
-}
+
 
 const StudentSelectionScreen: React.FC = () => {
     const { iniciarSesion } = useApp();
@@ -28,33 +24,21 @@ const StudentSelectionScreen: React.FC = () => {
 
     const fetchStudents = async () => {
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const token = sessionData.session?.access_token;
+            // FIX: Removed /api/auth/me call. Directly check Supabase session.
+            const { data: { user }, error } = await supabase.auth.getUser();
 
-            if (!token) {
-                // No session, redirect? 
-                // For now, component logic handles rendering. 
-                // Parent navigator should handle redirects usually.
-                setError('No hay sesión activa.');
-                setLoading(false);
+            if (error || !user) {
+                // Si no hay sesión válida, cerrar sesión para que AppNavigator maneje el login
+                await supabase.auth.signOut();
                 return;
             }
 
-            // Call BFF
-            const res = await fetch('/api/auth/me', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!res.ok) throw new Error('Error verificando sesión');
-
-            const data: AuthMeResponse = await res.json();
-            setStudents(data.students || []);
+            // Mostrar estado vacío temporalmente
+            setStudents([]);
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message);
+            await supabase.auth.signOut();
         } finally {
             setLoading(false);
         }
