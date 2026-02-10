@@ -7,7 +7,7 @@ interface Student {
     id: string;
     name: string;
     grade: string;
-    avatar_url?: string;
+    avatar_id?: string;
 }
 
 
@@ -24,21 +24,28 @@ const StudentSelectionScreen: React.FC = () => {
 
     const fetchStudents = async () => {
         try {
-            // FIX: Removed /api/auth/me call. Directly check Supabase session.
-            const { data: { user }, error } = await supabase.auth.getUser();
+            // 1. Check Session
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-            if (error || !user) {
-                // Si no hay sesión válida, cerrar sesión para que AppNavigator maneje el login
+            if (authError || !user) {
                 await supabase.auth.signOut();
                 return;
             }
 
-            // Mostrar estado vacío temporalmente
-            setStudents([]);
+            // 2. Fetch Students for this parent
+            const { data, error: dbError } = await supabase
+                .from('students')
+                .select('*')
+                .eq('parent_id', user.id);
+
+            if (dbError) throw dbError;
+
+            setStudents(data || []);
 
         } catch (err: any) {
-            console.error(err);
-            await supabase.auth.signOut();
+            console.error('Error fetching students:', err);
+            // Don't sign out on DB error, just show empty or error state
+            setError(err.message);
         } finally {
             setLoading(false);
         }
@@ -61,7 +68,57 @@ const StudentSelectionScreen: React.FC = () => {
         localStorage.setItem('tpdm_active_grade', s.grade);
     };
 
-    const styles = getStyles();
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [newStudentName, setNewStudentName] = useState('');
+    const [newStudentGrade, setNewStudentGrade] = useState('');
+    const [creating, setCreating] = useState(false);
+
+    const handleAddStudent = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!newStudentName.trim()) {
+            alert('Por favor ingresa un nombre válido.');
+            return;
+        }
+
+        setCreating(true);
+        setError(null);
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('No hay sesión de usuario.');
+
+            // Insert into Supabase
+            const { data, error: insertError } = await supabase
+                .from('students')
+                .insert([
+                    {
+                        parent_id: user.id,
+                        name: newStudentName.trim(),
+                        grade: newStudentGrade,
+                        avatar_id: 'default'
+                    }
+                ])
+                .select();
+
+            if (insertError) throw insertError;
+
+            // Success: reload list
+            await fetchStudents();
+            setShowAddModal(false);
+            setNewStudentName('');
+            setNewStudentGrade('');
+
+        } catch (err: any) {
+            console.error('Error creating student:', err);
+            // Alert instead of global error to keep modal open if possible, 
+            // or just let the global error catch it (which renders the error screen).
+            // For better UX during creation, alert is safer to keep context.
+            alert(err.message || 'Error al crear estudiante');
+        } finally {
+            setCreating(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -75,12 +132,17 @@ const StudentSelectionScreen: React.FC = () => {
         return (
             <div style={styles.container}>
                 <div style={styles.errorBox}>
-                    <h3>Error de Autenticación</h3>
+                    <h3>Error</h3>
                     <p>{error}</p>
                     <button onClick={() => window.location.reload()} style={styles.btnRetry}>
-                        Intentar de nuevo
+                        Reintentar
+                    </button>
+                    {/* Escape hatch in case of error */}
+                    <button onClick={() => { setError(null); setShowAddModal(true); }} style={{ ...styles.btnRetry, marginLeft: 10 }}>
+                        Crear Estudiante
                     </button>
                 </div>
+                {/* Modal de Error también podría ir aquí, pero simplificamos */}
             </div>
         );
     }
@@ -95,29 +157,93 @@ const StudentSelectionScreen: React.FC = () => {
 
                 {students.length === 0 ? (
                     <div style={styles.emptyState}>
-                        <p>No hay estudiantes asociados a esta cuenta.</p>
-                        {/* Future: Add 'Crear Estudiante' button */}
-                        <div style={styles.warningBox}>
-                            ⚠️ Modo Beta: Contacta a soporte para vincular estudiantes.
-                        </div>
+                        <p>No hay estudiantes asociados.</p>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            style={styles.primaryButton}
+                        >
+                            + CREAR ESTUDIANTE
+                        </button>
                     </div>
                 ) : (
-                    <div style={styles.grid}>
-                        {students.map((s) => (
-                            <div key={s.id} onClick={() => handleSelectStudent(s)} style={styles.card}>
-                                <div style={styles.avatarPlaceholder}>
-                                    {s.name.charAt(0).toUpperCase()}
+                    <>
+                        <div style={styles.grid}>
+                            {students.map((s) => (
+                                <div key={s.id} onClick={() => handleSelectStudent(s)} style={styles.card}>
+                                    <div style={styles.avatarPlaceholder}>
+                                        {s.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div style={styles.cardInfo}>
+                                        <h3 style={styles.studentName}>{s.name}</h3>
+                                        <span style={styles.gradeBadge}>{s.grade}</span>
+                                    </div>
+                                    <div style={styles.arrowIcon}>→</div>
                                 </div>
-                                <div style={styles.cardInfo}>
-                                    <h3 style={styles.studentName}>{s.name}</h3>
-                                    <span style={styles.gradeBadge}>{s.grade}</span>
-                                </div>
-                                <div style={styles.arrowIcon}>→</div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                        <div style={{ marginTop: 20 }}>
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                style={styles.secondaryButton}
+                            >
+                                + Agregar otro estudiante
+                            </button>
+                        </div>
+                    </>
                 )}
             </div>
+
+            {/* MODAL CREAR ESTUDIANTE */}
+            {showAddModal && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.modalContent}>
+                        <h2 style={{ marginBottom: 16 }}>Nuevo Recluta</h2>
+                        <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <input
+                                type="text"
+                                placeholder="Nombre (ej. Juan)"
+                                value={newStudentName}
+                                onChange={e => setNewStudentName(e.target.value)}
+                                style={styles.input}
+                                required
+                            />
+                            <select
+                                value={newStudentGrade}
+                                onChange={e => setNewStudentGrade(e.target.value)}
+                                style={styles.input}
+                                required
+                            >
+                                <option value="">Selecciona Grado</option>
+                                <option value="1ro Primaria">1ro Primaria</option>
+                                <option value="2do Primaria">2do Primaria</option>
+                                <option value="3ro Primaria">3ro Primaria</option>
+                                <option value="4to Primaria">4to Primaria</option>
+                                <option value="5to Primaria">5to Primaria</option>
+                                <option value="6to Primaria">6to Primaria</option>
+                                <option value="1ro Secundaria">1ro Secundaria</option>
+                            </select>
+
+                            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddModal(false)}
+                                    style={styles.cancelButton}
+                                    disabled={creating}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    style={styles.primaryButton}
+                                    disabled={creating}
+                                >
+                                    {creating ? 'Creando...' : 'Guardar'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -241,7 +367,11 @@ const getStyles = () => ({
         padding: '40px',
         color: '#6B7280',
         border: '2px dashed #2a3b68',
-        borderRadius: '16px'
+        borderRadius: '16px',
+        display: 'flex',
+        flexDirection: 'column' as const,
+        alignItems: 'center',
+        gap: '16px'
     },
     warningBox: {
         marginTop: '20px',
@@ -250,6 +380,62 @@ const getStyles = () => ({
         color: 'orange',
         fontSize: '12px',
         borderRadius: '8px'
+    },
+    primaryButton: {
+        backgroundColor: '#34D399',
+        color: '#064E3B',
+        border: 'none',
+        borderRadius: '8px',
+        padding: '12px 24px',
+        fontSize: '14px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        boxShadow: '0 0 15px rgba(52, 211, 153, 0.3)'
+    },
+    secondaryButton: {
+        backgroundColor: 'transparent',
+        color: '#34D399',
+        border: '1px solid #34D399',
+        borderRadius: '8px',
+        padding: '10px 20px',
+        fontSize: '13px',
+        cursor: 'pointer'
+    },
+    modalOverlay: {
+        position: 'fixed' as const,
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20
+    },
+    modalContent: {
+        backgroundColor: '#131b3a',
+        padding: '24px',
+        borderRadius: '16px',
+        width: '100%',
+        maxWidth: '350px',
+        border: '1px solid #2a3b68',
+        boxShadow: '0 0 30px rgba(0,0,0,0.5)'
+    },
+    input: {
+        backgroundColor: '#0f152e',
+        border: '1px solid #2a3b68',
+        borderRadius: '8px',
+        padding: '12px',
+        color: '#fff',
+        fontSize: '14px',
+        outline: 'none'
+    },
+    cancelButton: {
+        backgroundColor: 'transparent',
+        color: '#9CA3AF',
+        border: 'none',
+        padding: '12px',
+        cursor: 'pointer',
+        flex: 1
     }
 });
 
