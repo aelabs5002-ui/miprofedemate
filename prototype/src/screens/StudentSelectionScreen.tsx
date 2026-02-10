@@ -200,33 +200,52 @@ const StudentSelectionScreen: React.FC = () => {
             {showAddModal && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
-                        <h2 style={{ marginBottom: 16 }}>Nuevo Recluta</h2>
-                        <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <input
-                                type="text"
-                                placeholder="Nombre (ej. Juan)"
-                                value={newStudentName}
-                                onChange={e => setNewStudentName(e.target.value)}
-                                style={styles.input}
-                                required
-                            />
-                            <select
-                                value={newStudentGrade}
-                                onChange={e => setNewStudentGrade(e.target.value)}
-                                style={styles.input}
-                                required
-                            >
-                                <option value="">Selecciona Grado</option>
-                                <option value="1ro Primaria">1ro Primaria</option>
-                                <option value="2do Primaria">2do Primaria</option>
-                                <option value="3ro Primaria">3ro Primaria</option>
-                                <option value="4to Primaria">4to Primaria</option>
-                                <option value="5to Primaria">5to Primaria</option>
-                                <option value="6to Primaria">6to Primaria</option>
-                                <option value="1ro Secundaria">1ro Secundaria</option>
-                            </select>
+                        <button
+                            onClick={() => setShowAddModal(false)}
+                            style={styles.closeButton}
+                            aria-label="Cerrar"
+                        >
+                            &times;
+                        </button>
 
-                            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                        <h2 style={{ marginBottom: 20, textAlign: 'center', color: '#fff' }}>
+                            Nuevo Recluta
+                        </h2>
+
+                        <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: 6, fontSize: '12px', color: '#9CA3AF' }}>Nombre del Agente</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej. Juan"
+                                    value={newStudentName}
+                                    onChange={e => setNewStudentName(e.target.value)}
+                                    style={styles.input}
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: 6, fontSize: '12px', color: '#9CA3AF' }}>Grado / Nivel</label>
+                                <select
+                                    value={newStudentGrade}
+                                    onChange={e => setNewStudentGrade(e.target.value)}
+                                    style={styles.input}
+                                    required
+                                >
+                                    <option value="">Selecciona Grado</option>
+                                    <option value="1ro Primaria">1ro Primaria</option>
+                                    <option value="2do Primaria">2do Primaria</option>
+                                    <option value="3ro Primaria">3ro Primaria</option>
+                                    <option value="4to Primaria">4to Primaria</option>
+                                    <option value="5to Primaria">5to Primaria</option>
+                                    <option value="6to Primaria">6to Primaria</option>
+                                    <option value="1ro Secundaria">1ro Secundaria</option>
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
                                 <button
                                     type="button"
                                     onClick={() => setShowAddModal(false)}
@@ -237,10 +256,10 @@ const StudentSelectionScreen: React.FC = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    style={styles.primaryButton}
+                                    style={{ ...styles.primaryButton, flex: 1, justifyContent: 'center' }}
                                     disabled={creating}
                                 >
-                                    {creating ? 'Creando...' : 'Guardar'}
+                                    {creating ? 'Guardando...' : 'Guardar'}
                                 </button>
                             </div>
                         </form>
@@ -407,38 +426,57 @@ const getStyles = () => ({
     modalOverlay: {
         position: 'fixed' as const,
         top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        zIndex: 100,
+        backgroundColor: 'rgba(0,0,0,0.85)', // Slightly darker overlay
+        zIndex: 9999, // Ensure on top
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 20
+        padding: 20,
+        backdropFilter: 'blur(5px)' // Modern glass effect
     },
     modalContent: {
         backgroundColor: '#131b3a',
         padding: '24px',
         borderRadius: '16px',
         width: '100%',
-        maxWidth: '350px',
+        maxWidth: '400px', // Slightly wider
         border: '1px solid #2a3b68',
-        boxShadow: '0 0 30px rgba(0,0,0,0.5)'
+        boxShadow: '0 0 50px rgba(0,0,0,0.8)',
+        color: '#ffffff', // Explicit text color
+        position: 'relative' as const
     },
     input: {
         backgroundColor: '#0f152e',
         border: '1px solid #2a3b68',
         borderRadius: '8px',
-        padding: '12px',
+        padding: '14px', // Larger touch target
         color: '#fff',
-        fontSize: '14px',
-        outline: 'none'
+        fontSize: '16px', // Better readability
+        outline: 'none',
+        width: '100%'
     },
     cancelButton: {
-        backgroundColor: 'transparent',
+        backgroundColor: 'rgba(255,255,255,0.05)',
         color: '#9CA3AF',
         border: 'none',
-        padding: '12px',
+        padding: '14px',
         cursor: 'pointer',
-        flex: 1
+        flex: 1,
+        borderRadius: '8px',
+        fontSize: '14px',
+        fontWeight: '600'
+    },
+    closeButton: {
+        position: 'absolute' as const,
+        top: '16px',
+        right: '16px',
+        background: 'none',
+        border: 'none',
+        color: '#9CA3AF',
+        fontSize: '24px',
+        cursor: 'pointer',
+        padding: '0',
+        lineHeight: '1'
     }
 });
 
