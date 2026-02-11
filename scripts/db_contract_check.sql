@@ -1,67 +1,86 @@
--- ==============================================================================
--- DB CONTRACT CHECK
--- Purpose: Verify that the DB schema matches the application's expectations.
--- Usage: Run this against the Supabase DB. If it fails, the deployment should abort.
--- ==============================================================================
-
-BEGIN;
-
+-- FAIL FAST if key columns are missing in public.students
 DO $$
 DECLARE
-    missing_cols text;
-    fk_exists boolean;
-    policy_exists boolean;
+  missing_cols text;
 BEGIN
-    -- 1. CHECK REQUIRED COLUMNS in public.students
-    --    (display_name, parent_id, avatar_id)
-    SELECT string_agg(column_name, ', ')
-    INTO missing_cols
-    FROM (
-        SELECT 'display_name' AS col UNION ALL
-        SELECT 'parent_id' UNION ALL
-        SELECT 'avatar_id'
-    ) required_cols
-    WHERE col NOT IN (
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'students'
-    );
+  SELECT string_agg(col, ', ') INTO missing_cols
+  FROM (
+    SELECT unnest(ARRAY['display_name','parent_id','avatar_id']) AS col
+    EXCEPT
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='students'
+  ) t;
 
-    IF missing_cols IS NOT NULL THEN
-        RAISE EXCEPTION 'DB CONTRACT VIOLATION: Missing required columns in public.students: %', missing_cols;
-    END IF;
-
-    -- 2. CHECK FOREIGN KEY (students -> parents)
-    --    We look for a constraint that references public.parents(id)
-    SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.referential_constraints rc
-        JOIN information_schema.key_column_usage kcu
-          ON kcu.constraint_name = rc.constraint_name
-        JOIN information_schema.constraint_column_usage ccu
-          ON ccu.constraint_name = rc.unique_constraint_name
-        WHERE kcu.table_name = 'students'
-          AND ccu.table_name = 'parents'
-          AND ccu.column_name = 'id'
-    ) INTO fk_exists;
-
-    IF NOT fk_exists THEN
-        RAISE EXCEPTION 'DB CONTRACT VIOLATION: public.students MUST have a Foreign Key to public.parents(id).';
-    END IF;
-
-    -- 3. CHECK POLICIES EXIST (Basic sanity check)
-    --    We just want to ensure RLS is active and some policies exist.
-    SELECT EXISTS (
-        SELECT 1 FROM pg_policies WHERE tablename = 'students'
-    ) AND EXISTS (
-        SELECT 1 FROM pg_policies WHERE tablename = 'parents'
-    ) INTO policy_exists;
-
-    IF NOT policy_exists THEN
-        RAISE EXCEPTION 'DB CONTRACT VIOLATION: RLS Policies missing for students or parents tables.';
-    END IF;
-
-    RAISE NOTICE 'DB CONTRACT CHECK PASSED: Schema rules satisfied.';
+  IF missing_cols IS NOT NULL THEN
+    RAISE EXCEPTION 'DB CONTRACT FAIL: missing columns in public.students: %', missing_cols;
+  END IF;
 END $$;
 
-COMMIT;
+-- Verify EXACT FK: students_parent_id_fkey = students.parent_id -> public.parents.id
+DO $$
+DECLARE
+  fk_ok boolean;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON kcu.constraint_name = tc.constraint_name
+     AND kcu.table_schema = tc.table_schema
+    JOIN information_schema.constraint_column_usage ccu
+      ON ccu.constraint_name = tc.constraint_name
+     AND ccu.table_schema = tc.table_schema
+    WHERE tc.table_schema='public'
+      AND tc.table_name='students'
+      AND tc.constraint_type='FOREIGN KEY'
+      AND tc.constraint_name='students_parent_id_fkey'
+      AND kcu.column_name='parent_id'
+      AND ccu.table_schema='public'
+      AND ccu.table_name='parents'
+      AND ccu.column_name='id'
+  ) INTO fk_ok;
+
+  IF NOT fk_ok THEN
+    RAISE EXCEPTION 'DB CONTRACT FAIL: FK students_parent_id_fkey must be students.parent_id -> public.parents.id';
+  END IF;
+END $$;
+
+-- Verify minimum policies (students: SELECT+INSERT, parents: SELECT+INSERT)
+DO $$
+DECLARE
+  missing_policies text;
+BEGIN
+  SELECT string_agg(p, '; ') INTO missing_policies
+  FROM (
+    SELECT 'students:insert' AS p
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE schemaname='public' AND tablename='students' AND cmd='INSERT'
+    )
+    UNION ALL
+    SELECT 'students:select'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE schemaname='public' AND tablename='students' AND cmd='SELECT'
+    )
+    UNION ALL
+    SELECT 'parents:insert'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE schemaname='public' AND tablename='parents' AND cmd='INSERT'
+    )
+    UNION ALL
+    SELECT 'parents:select'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE schemaname='public' AND tablename='parents' AND cmd='SELECT'
+    )
+  ) t;
+
+  IF missing_policies IS NOT NULL THEN
+    RAISE EXCEPTION 'DB CONTRACT FAIL: missing RLS policies => %', missing_policies;
+  END IF;
+END $$;
+
+SELECT 'DB CONTRACT OK' AS status;

@@ -31,9 +31,9 @@ jobs:
     - name: Lint
       run: npm run lint
 
-    - name: DB Contract Check
+    - name: DB contract check
       env:
         SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       run: |
         chmod +x scripts/run_db_contract_check.sh
-        ./scripts/run_db_contract_check.sh
+        scripts/run_db_contract_check.sh
