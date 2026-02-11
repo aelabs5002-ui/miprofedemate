@@ -87,10 +87,24 @@ const StudentSelectionScreen: React.FC = () => {
         setError(null);
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('No hay sesión de usuario.');
+            // 1. Get Real User
+            const { data: { user }, error: userErr } = await supabase.auth.getUser();
+            if (userErr || !user) throw new Error('No hay sesión de usuario activa.');
 
-            // Insert into Supabase
+            // 2. Ensure Parent Exists (Fix FK violation)
+            const { error: parentErr } = await supabase
+                .from('parents')
+                .upsert(
+                    { id: user.id, email: user.email || null },
+                    { onConflict: 'id' }
+                );
+
+            if (parentErr) {
+                console.error('Error ensuring parent row:', parentErr);
+                throw parentErr;
+            }
+
+            // 3. Insert Student
             const { data, error: insertError } = await supabase
                 .from('students')
                 .insert([
@@ -101,7 +115,7 @@ const StudentSelectionScreen: React.FC = () => {
                         avatar_id: newAvatarId || 'default'
                     }
                 ])
-                .select();
+                .select('*'); // Important to get the ID back
 
             if (insertError) throw insertError;
 
