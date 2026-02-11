@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 // INTERFACES
 interface Student {
     id: string;
-    name: string;
+    display_name: string; // Updated from 'name' to match DB
     grade: string;
     avatar_id?: string;
 }
@@ -56,7 +56,7 @@ const StudentSelectionScreen: React.FC = () => {
         // Inject into Context
         iniciarSesion({
             id: s.id, // REAL DB UUID
-            nombre: s.name || 'Estudiante',
+            nombre: s.display_name || 'Estudiante',
             correo: 'student@proxy.com',
             rol: 'Alumno',
             grade: s.grade // Custom prop needed in context? 
@@ -96,7 +96,7 @@ const StudentSelectionScreen: React.FC = () => {
                 .insert([
                     {
                         parent_id: user.id,
-                        name: newStudentName.trim(),
+                        display_name: newStudentName.trim(), // Updated column name
                         grade: newStudentGrade,
                         avatar_id: newAvatarId || 'default'
                     }
@@ -187,10 +187,10 @@ const StudentSelectionScreen: React.FC = () => {
                             {students.map((s) => (
                                 <div key={s.id} onClick={() => handleSelectStudent(s)} style={styles.card}>
                                     <div style={styles.avatarPlaceholder}>
-                                        {s.name.charAt(0).toUpperCase()}
+                                        {(s.display_name || 'A').charAt(0).toUpperCase()}
                                     </div>
                                     <div style={styles.cardInfo}>
-                                        <h3 style={styles.studentName}>{s.name}</h3>
+                                        <h3 style={styles.studentName}>{s.display_name}</h3>
                                         <span style={styles.gradeBadge}>{s.grade}</span>
                                     </div>
                                     <div style={styles.arrowIcon}>→</div>
