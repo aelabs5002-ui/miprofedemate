@@ -233,17 +233,17 @@ const StudentSelectionScreen: React.FC = () => {
                                 <select
                                     value={newStudentGrade}
                                     onChange={e => setNewStudentGrade(e.target.value)}
-                                    style={styles.input}
+                                    style={styles.select}
                                     required
                                 >
-                                    <option value="">Selecciona Grado</option>
-                                    <option value="1ro Primaria">1ro Primaria</option>
-                                    <option value="2do Primaria">2do Primaria</option>
-                                    <option value="3ro Primaria">3ro Primaria</option>
-                                    <option value="4to Primaria">4to Primaria</option>
-                                    <option value="5to Primaria">5to Primaria</option>
-                                    <option value="6to Primaria">6to Primaria</option>
-                                    <option value="1ro Secundaria">1ro Secundaria</option>
+                                    <option value="" style={styles.option}>Selecciona Grado</option>
+                                    <option value="1ro Primaria" style={styles.option}>1ro Primaria</option>
+                                    <option value="2do Primaria" style={styles.option}>2do Primaria</option>
+                                    <option value="3ro Primaria" style={styles.option}>3ro Primaria</option>
+                                    <option value="4to Primaria" style={styles.option}>4to Primaria</option>
+                                    <option value="5to Primaria" style={styles.option}>5to Primaria</option>
+                                    <option value="6to Primaria" style={styles.option}>6to Primaria</option>
+                                    <option value="1ro Secundaria" style={styles.option}>1ro Secundaria</option>
                                 </select>
                             </div>
 
@@ -252,12 +252,12 @@ const StudentSelectionScreen: React.FC = () => {
                                 <select
                                     value={newAvatarId}
                                     onChange={e => setNewAvatarId(e.target.value)}
-                                    style={styles.input}
+                                    style={styles.select}
                                 >
-                                    <option value="default">Por defecto</option>
-                                    <option value="avatar_1">Avatar 1</option>
-                                    <option value="avatar_2">Avatar 2</option>
-                                    <option value="avatar_3">Avatar 3</option>
+                                    <option value="default" style={styles.option}>Por defecto</option>
+                                    <option value="avatar_1" style={styles.option}>Avatar 1</option>
+                                    <option value="avatar_2" style={styles.option}>Avatar 2</option>
+                                    <option value="avatar_3" style={styles.option}>Avatar 3</option>
                                 </select>
                             </div>
 
@@ -498,6 +498,24 @@ const getStyles = () => ({
         fontSize: '20px',
         cursor: 'pointer',
         padding: 4
+    },
+    select: {
+        width: '100%',
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        color: '#FFFFFF',
+        fontSize: '16px',
+        outline: 'none',
+        marginTop: 4,
+        cursor: 'pointer',
+        appearance: 'none' as const, // Fix for TypeScript
+        WebkitAppearance: 'none' as const
+    },
+    option: {
+        backgroundColor: '#0B1220',
+        color: '#E5E7EB'
     }
 });
 
