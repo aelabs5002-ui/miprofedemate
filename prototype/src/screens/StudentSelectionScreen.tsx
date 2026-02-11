@@ -105,11 +105,22 @@ const StudentSelectionScreen: React.FC = () => {
 
             if (insertError) throw insertError;
 
-            // Success: reload list
-            await fetchStudents();
-            setShowAddModal(false);
-            setNewStudentName('');
-            setNewStudentGrade('');
+            // Success: Auto-select key logic
+            if (data && data.length > 0) {
+                // Auto-enter the app with the new student
+                handleSelectStudent(data[0]);
+                // Close modal just in case, though app will navigation away
+                setShowAddModal(false);
+                setNewStudentName('');
+                setNewStudentGrade('');
+                setNewAvatarId('default');
+            } else {
+                // Fallback if no data returned
+                await fetchStudents();
+                setShowAddModal(false);
+                setNewStudentName('');
+                setNewStudentGrade('');
+            }
 
         } catch (err: any) {
             console.error('Error creating student:', err);
