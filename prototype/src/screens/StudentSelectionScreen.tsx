@@ -13,6 +13,7 @@ interface Student {
 
 
 const StudentSelectionScreen: React.FC = () => {
+    const styles = getStyles();
     const { iniciarSesion } = useApp();
     const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState<Student[]>([]);
@@ -71,6 +72,7 @@ const StudentSelectionScreen: React.FC = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [newStudentName, setNewStudentName] = useState('');
     const [newStudentGrade, setNewStudentGrade] = useState('');
+    const [newAvatarId, setNewAvatarId] = useState('default');
     const [creating, setCreating] = useState(false);
 
     const handleAddStudent = async (e: React.FormEvent) => {
@@ -96,7 +98,7 @@ const StudentSelectionScreen: React.FC = () => {
                         parent_id: user.id,
                         name: newStudentName.trim(),
                         grade: newStudentGrade,
-                        avatar_id: 'default'
+                        avatar_id: newAvatarId || 'default'
                     }
                 ])
                 .select();
@@ -214,7 +216,7 @@ const StudentSelectionScreen: React.FC = () => {
 
                         <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: 6, fontSize: '12px', color: '#9CA3AF' }}>Nombre del Agente</label>
+                                <label style={styles.label}>Nombre del Agente</label>
                                 <input
                                     type="text"
                                     placeholder="Ej. Juan"
@@ -227,7 +229,7 @@ const StudentSelectionScreen: React.FC = () => {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: 6, fontSize: '12px', color: '#9CA3AF' }}>Grado / Nivel</label>
+                                <label style={styles.label}>Grado / Nivel</label>
                                 <select
                                     value={newStudentGrade}
                                     onChange={e => setNewStudentGrade(e.target.value)}
@@ -245,6 +247,20 @@ const StudentSelectionScreen: React.FC = () => {
                                 </select>
                             </div>
 
+                            <div>
+                                <label style={styles.label}>Avatar</label>
+                                <select
+                                    value={newAvatarId}
+                                    onChange={e => setNewAvatarId(e.target.value)}
+                                    style={styles.input}
+                                >
+                                    <option value="default">Por defecto</option>
+                                    <option value="avatar_1">Avatar 1</option>
+                                    <option value="avatar_2">Avatar 2</option>
+                                    <option value="avatar_3">Avatar 3</option>
+                                </select>
+                            </div>
+
                             <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
                                 <button
                                     type="button"
@@ -259,7 +275,7 @@ const StudentSelectionScreen: React.FC = () => {
                                     style={{ ...styles.primaryButton, flex: 1, justifyContent: 'center' }}
                                     disabled={creating}
                                 >
-                                    {creating ? 'Guardando...' : 'Guardar'}
+                                    {creating ? 'Guardando...' : 'Crear Agente'}
                                 </button>
                             </div>
                         </form>
@@ -425,58 +441,63 @@ const getStyles = () => ({
     },
     modalOverlay: {
         position: 'fixed' as const,
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.85)', // Slightly darker overlay
-        zIndex: 9999, // Ensure on top
+        inset: 0,
+        zIndex: 9999,
+        backgroundColor: 'rgba(0,0,0,0.7)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 20,
-        backdropFilter: 'blur(5px)' // Modern glass effect
+        padding: 16,
+        backdropFilter: 'blur(5px)'
     },
     modalContent: {
-        backgroundColor: '#131b3a',
-        padding: '24px',
-        borderRadius: '16px',
         width: '100%',
-        maxWidth: '400px', // Slightly wider
-        border: '1px solid #2a3b68',
-        boxShadow: '0 0 50px rgba(0,0,0,0.8)',
-        color: '#ffffff', // Explicit text color
+        maxWidth: 420,
+        backgroundColor: '#0B1220',
+        borderRadius: 16,
+        padding: 16,
+        border: '1px solid rgba(255,255,255,0.12)',
+        color: '#E5E7EB',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
         position: 'relative' as const
     },
     input: {
-        backgroundColor: '#0f152e',
-        border: '1px solid #2a3b68',
-        borderRadius: '8px',
-        padding: '14px', // Larger touch target
-        color: '#fff',
-        fontSize: '16px', // Better readability
+        width: '100%',
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        color: '#FFFFFF',
+        fontSize: '16px',
         outline: 'none',
-        width: '100%'
+        marginTop: 4
+    },
+    label: {
+        color: '#E5E7EB',
+        fontSize: '14px',
+        marginBottom: 4,
+        display: 'block'
     },
     cancelButton: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        color: '#9CA3AF',
-        border: 'none',
-        padding: '14px',
+        backgroundColor: 'transparent',
+        color: '#E5E7EB',
+        border: '1px solid rgba(255,255,255,0.12)',
+        padding: '10px 16px',
         cursor: 'pointer',
-        flex: 1,
         borderRadius: '8px',
         fontSize: '14px',
         fontWeight: '600'
     },
     closeButton: {
         position: 'absolute' as const,
-        top: '16px',
-        right: '16px',
+        top: '12px',
+        right: '12px',
         background: 'none',
         border: 'none',
         color: '#9CA3AF',
-        fontSize: '24px',
+        fontSize: '20px',
         cursor: 'pointer',
-        padding: '0',
-        lineHeight: '1'
+        padding: 4
     }
 });
 
