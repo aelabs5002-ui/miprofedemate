@@ -1,10 +1,11 @@
 create table if not exists legal_acceptances (
     id uuid primary key default gen_random_uuid(),
-    parent_id uuid not null references parents(id) on delete cascade,
-    document_type text not null,
-    version text not null,
+    parent_id uuid not null references auth.users(id) on delete cascade,
+    terms_version text not null,
+    privacy_version text not null,
     accepted_at timestamp with time zone default now(),
-    user_agent text
+    user_agent text,
+    locale text
 );
 
 alter table legal_acceptances enable row level security;

@@ -29,59 +29,64 @@ const OtpConfirmScreen: React.FC<OtpConfirmScreenProps> = ({ email, alVolverALog
         try {
             const { supabase } = await import('../lib/supabaseClient');
 
+            // 1. Verificar OTP
             const { data, error } = await supabase.auth.verifyOtp({
                 email: targetEmail,
                 token: otpCode,
                 type: 'signup'
             });
 
-            console.log('[OtpConfirm] verifyOtp result:', { data, error });
-
             if (error) throw error;
+            console.log("LEGAL_STEP_1_VERIFY_OK");
 
-            // Éxito: Auth session establecida
+            // 2. Obtener usuario real explícitamente
+            const { data: userData, error: userError } = await supabase.auth.getUser();
+            const userId = userData.user?.id;
+            console.log("LEGAL_STEP_2_GETUSER", userId);
 
-            if (data.user || data.session?.user) {
-                const userId = data.user?.id || data.session?.user.id;
-
-                if (userId) {
-                    // Insert Legal Acceptance NOW that we have a session
-                    const { error: legalError } = await supabase
-                        .from('legal_acceptances')
-                        .insert([
-                            {
-                                parent_id: userId,
-                                document_type: 'terms',
-                                version: '1.0',
-                                user_agent: navigator.userAgent
-                            },
-                            {
-                                parent_id: userId,
-                                document_type: 'privacy',
-                                version: '1.0',
-                                user_agent: navigator.userAgent
-                            }
-                        ]);
-
-                    if (legalError) {
-                        console.error('Error persisting legal acceptance:', legalError);
-                        // Optional: decide if we want to block login or just log it.
-                        // Requirement says: "Si el INSERT falla: mostrar error y NO continuar."
-                        throw new Error('Error al registrar aceptación de términos legal.');
-                    }
-                }
+            if (userError || !userId) {
+                console.error("LEGAL_GetUser_FAIL", userError);
+                await supabase.auth.signOut(); // Revert session
+                throw new Error("No se pudo verificar la identidad del usuario.");
             }
 
-            // Éxito total: La sesión se actualiza y AppNavigator gestionará el cambio de pantalla.
-            setSuccessMsg('¡Cuenta confirmada y términos aceptados! Iniciando sesión...');
+            // 3. Insertar Legal Acceptance
+            console.log("LEGAL_STEP_3_INSERT_START");
 
-            // NOTA: No borramos pending_signup_email aquí. 
-            // Se borra en AppNavigator cuando detecta la sesión.
+            const { data: legalData, error: legalError } = await supabase
+                .from('legal_acceptances')
+                .insert({
+                    parent_id: userId,
+                    terms_version: '1.0',
+                    privacy_version: '1.0',
+                    accepted_at: new Date().toISOString(),
+                    user_agent: navigator.userAgent,
+                    locale: navigator.language
+                })
+                .select('id,parent_id,accepted_at')
+                .single();
+
+            // 4. Fail-Fast Check
+            if (legalError) {
+                console.error("LEGAL_STEP_X_FAIL", legalError);
+                // CRITICAL: Sign out to prevent AppNavigator from remaining in "Auth" state
+                await supabase.auth.signOut();
+                throw new Error("Error al registrar aceptación de términos.");
+            }
+
+            console.log("LEGAL_STEP_4_INSERT_OK", legalData);
+
+            // Éxito Total
+            setSuccessMsg('¡Cuenta confirmada y términos aceptados! Iniciando sesión...');
+            // AppNavigator detectará la sesión (ya establecida) y navegará.
 
         } catch (err: any) {
-            console.error(err);
-            setErrorMsg(err.message || 'Código inválido o expirado.');
+            console.error("LEGAL_FLOW_ERROR", err);
+            setErrorMsg(err.message || 'Error en validación.');
             setLoading(false);
+            // Ensure we are signed out if generic error occurred after verify?
+            // Safer to just show error. If session exists but code failed, AppNavigator takes over.
+            // But we handled legalError with signOut already.
         }
     };
 
