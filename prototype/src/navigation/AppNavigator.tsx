@@ -90,7 +90,54 @@ const AppNavigator: React.FC = () => {
 
   // --- RENDERING AUTH FLOW ---
 
-  if (loadingAuth) {
+  // 0. Bootstrap Logic: Check for Students if Session Exists
+  // Force "StudentSelection" if no student found, regardless of other states.
+  const [checkingStudents, setCheckingStudents] = useState(false);
+  const [hasStudents, setHasStudents] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkStudents = async () => {
+      if (!supabaseSession?.user?.id) return;
+
+      // If we already know we have students, skip (or if we are already in the app)
+      // Actually, we should check this on mount/session-change to be safe.
+
+      setCheckingStudents(true);
+      console.log('BOOT_STEP_1_USER_OK', supabaseSession.user.id);
+
+      try {
+        console.log('BOOT_STEP_2_STUDENT_QUERY');
+        const { data, error } = await supabase
+          .from('students')
+          .select('id')
+          .eq('parent_id', supabaseSession.user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (data) {
+          console.log('BOOT_STEP_3_STUDENT_FOUND', data.id);
+          setHasStudents(true);
+        } else {
+          console.log('BOOT_STEP_4_STUDENT_MISSING -> ROUTE_CREATE_AGENT');
+          setHasStudents(false);
+        }
+
+      } catch (err) {
+        console.error('BOOT_STEP_X_FAIL', err);
+        // Fail-safe: treat as no students to force user to try again or see error in selection screen
+        setHasStudents(false);
+      } finally {
+        setCheckingStudents(false);
+      }
+    };
+
+    checkStudents();
+  }, [supabaseSession]);
+
+
+  if (loadingAuth || (supabaseSession && checkingStudents)) {
     return <div style={{ color: 'white', padding: 20 }}>Cargando sesión...</div>;
   }
 
@@ -134,16 +181,29 @@ const AppNavigator: React.FC = () => {
           setPendingEmail(email);
           setVistaAuth('OTP');
         }}
+        alIrATerminos={() => {
+          // If we need terms screen, we need a state for it or just toggle
+          // For now, simpler to just log or ignore if no route exists
+          console.log("Terms requested from Register");
+        }}
       />
       : <LoginScreen alIrARegistro={() => setVistaAuth('Registro')} />;
   }
 
-  // 2. Si hay sesión de Padre pero NO se ha elegido Alumno (Contexto App vacío), mostrar Selección
-  if (supabaseSession && !sesion.estaAutenticado) {
+  // 2. CRITICAL GATE: If authenticated but NO STUDENTS -> Force Selection/Creation Screen
+  // This takes precedence over "sesion.estaAutenticado" (which is App Context state)
+  if (hasStudents === false) {
+    // If we are here, it means DB query returned 0 rows.
+    // We force StudentSelectionScreen which will now show "Create Agent".
     return <StudentSelectionScreen />;
   }
 
-  // 3. Si hay Alumno seleccionado, mostrar App Principal
+  // 3. Si hay sesión de Padre + Hay Estudiantes (DB) pero NO se ha elegido Alumno (Contexto App vacío)
+  if (!sesion.estaAutenticado) {
+    return <StudentSelectionScreen />;
+  }
+
+  // 4. Si hay Alumno seleccionado, mostrar App Principal
 
 
   const irASubirTarea = () => {

@@ -5,7 +5,10 @@ import { useApp } from '../context/AppContext';
 // INTERFACES
 interface Student {
     id: string;
-    display_name: string; // Updated from 'name' to match DB
+    description?: string; // Some DBs use description? No, schema said name.
+    name: string; // "name" in DB
+    display_name?: string; // "display_name" in recent code? 
+    // Let's support both to be safe
     grade: string;
     avatar_id?: string;
 }
@@ -18,6 +21,12 @@ const StudentSelectionScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState<Student[]>([]);
     const [error, setError] = useState<string | null>(null);
+
+    // Form State
+    const [showCreateForm, setShowCreateForm] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [newGrade, setNewGrade] = useState('3ro Primaria');
+    const [creating, setCreating] = useState(false);
 
     useEffect(() => {
         fetchStudents();
@@ -41,10 +50,12 @@ const StudentSelectionScreen: React.FC = () => {
 
             if (dbError) throw dbError;
 
+            // Map DB data to Interface if needed
+            // DB has 'name', interface expects 'name' now.
             setStudents(data || []);
 
-            // 3. Auto-select if only 1 student
-            if (data && data.length === 1) {
+            // 3. Auto-select if only 1 student AND we are not creating
+            if (data && data.length === 1 && !showCreateForm) {
                 // Auto-enter immediately
                 handleSelectStudent(data[0]);
                 return;
@@ -61,19 +72,61 @@ const StudentSelectionScreen: React.FC = () => {
 
     const handleSelectStudent = (s: Student) => {
         // Inject into Context
-        iniciarSesion({
+        const usuarioData = {
             id: s.id, // REAL DB UUID
-            nombre: s.display_name || 'Estudiante',
+            nombre: s.display_name || s.name || 'Estudiante',
             correo: 'student@proxy.com',
-            rol: 'Alumno',
-            grade: s.grade // Custom prop needed in context? 
-            // Validar si 'grade' existe en UserProfile del context
-            // Si no, lo guardamos en localStorage aparte.
-        });
+            rol: 'Alumno' as const,
+        };
+
+        // Context only accepts specific props. We pass 'grade' separately to local storage.
+        // If we want to pass it to context, we need to cast or update context type. 
+        // For now, let's respect the type and just use local storage for grade.
+        iniciarSesion(usuarioData);
 
         // Save extra metadata strictly for API usage
         localStorage.setItem('tpdm_active_student_id', s.id);
         localStorage.setItem('tpdm_active_grade', s.grade);
+    };
+
+    const handleCreateStudent = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newName.trim()) return;
+
+        setCreating(true);
+        setError(null);
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("No auth user");
+
+            const { data, error } = await supabase
+                .from('students')
+                .insert({
+                    parent_id: user.id,
+                    name: newName,
+                    grade: newGrade,
+                    avatar_id: 'hero_1'
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            const newStudent: Student = {
+                id: data.id,
+                name: data.name,
+                grade: data.grade,
+                avatar_id: data.avatar_id
+            };
+
+            handleSelectStudent(newStudent);
+
+        } catch (err: any) {
+            console.error("Error creating student:", err);
+            setError(err.message);
+            setCreating(false);
+        }
     };
 
     // Removal of handleAddStudent and form states as per requirement "1 padre = 1 estudiante"
@@ -86,7 +139,7 @@ const StudentSelectionScreen: React.FC = () => {
         );
     }
 
-    if (error) {
+    if (error && !creating) {
         return (
             <div style={styles.container}>
                 <div style={styles.errorBox}>
@@ -100,47 +153,87 @@ const StudentSelectionScreen: React.FC = () => {
                         Recargar App
                     </button>
                 </div>
-                {/* Modal de Error también podría ir aquí, pero simplificamos */}
             </div>
         );
     }
+
+    // emptyState or Form
+    const showForm = showCreateForm || students.length === 0;
 
     return (
         <div style={styles.container}>
             <div style={styles.gridPattern} />
 
             <div style={styles.content}>
-                <h1 style={styles.title}>SELECCIONA <span style={styles.highlight}>AGENTE</span></h1>
-                <p style={styles.subtitle}>¿Quién realizará la misión hoy?</p>
+                <h1 style={styles.title}>
+                    {showForm ? 'NUEVO AGENTE' : 'SELECCIONA AGENTE'}
+                </h1>
 
-                {students.length === 0 ? (
-                    <div style={styles.emptyState}>
-                        <p>No se encontraron estudiantes asociados a esta cuenta.</p>
-                        <div style={styles.warningBox}>
-                            ⚠️ Contacta a soporte si crees que esto es un error.
-                        </div>
-                    </div>
-                ) : (
+                {!showForm ? (
                     <>
+                        <p style={styles.subtitle}>¿Quién realizará la misión hoy?</p>
                         <div style={styles.grid}>
                             {students.map((s) => (
                                 <div key={s.id} onClick={() => handleSelectStudent(s)} style={styles.card}>
                                     <div style={styles.avatarPlaceholder}>
-                                        {(s.display_name || 'A').charAt(0).toUpperCase()}
+                                        {(s.display_name || s.name || 'A').charAt(0).toUpperCase()}
                                     </div>
                                     <div style={styles.cardInfo}>
-                                        <h3 style={styles.studentName}>{s.display_name}</h3>
+                                        <h3 style={styles.studentName}>{s.display_name || s.name}</h3>
                                         <span style={styles.gradeBadge}>{s.grade}</span>
                                     </div>
                                     <div style={styles.arrowIcon}>→</div>
                                 </div>
                             ))}
                         </div>
+                        {/* Hidden Create Button for "Add Another" if needed in future, but requested 1-1 for now? 
+                            Actually user said "Si ya existe 1... entrar directo". 
+                            But if we are here (e.g. 2 students or forced back), we show list. 
+                            If 0, we show form. 
+                        */}
                     </>
+                ) : (
+                    <div style={styles.emptyState}>
+                        {students.length === 0 && (
+                            <p>No se encontraron estudiantes asociados a esta cuenta.</p>
+                        )}
+
+                        {/* Create Form */}
+                        <form onSubmit={handleCreateStudent} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ textAlign: 'left' }}>
+                                <label style={styles.label}>NOMBRE DEL AGENTE</label>
+                                <input
+                                    value={newName}
+                                    onChange={e => setNewName(e.target.value)}
+                                    placeholder="Ej. Sofía"
+                                    style={styles.input}
+                                    disabled={creating}
+                                />
+                            </div>
+                            <div style={{ textAlign: 'left' }}>
+                                <label style={styles.label}>GRADO / NIVEL</label>
+                                <select
+                                    value={newGrade}
+                                    onChange={e => setNewGrade(e.target.value)}
+                                    style={styles.select}
+                                    disabled={creating}
+                                >
+                                    <option value="1ro Primaria" style={styles.option}>1ro Primaria</option>
+                                    <option value="2do Primaria" style={styles.option}>2do Primaria</option>
+                                    <option value="3ro Primaria" style={styles.option}>3ro Primaria</option>
+                                    <option value="4to Primaria" style={styles.option}>4to Primaria</option>
+                                    <option value="5to Primaria" style={styles.option}>5to Primaria</option>
+                                    <option value="6to Primaria" style={styles.option}>6to Primaria</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" style={styles.primaryButton} disabled={creating || !newName.trim()}>
+                                {creating ? 'CREANDO...' : 'CREAR Y COMENZAR'}
+                            </button>
+                        </form>
+                    </div>
                 )}
             </div>
-
-            {/* Modal Remove */}
         </div>
     );
 };
@@ -163,7 +256,7 @@ const getStyles = () => ({
         inset: 0,
         backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
         backgroundSize: '40px 40px',
-        pointerEvents: 'none'
+        pointerEvents: 'none' as const
     },
     loader: {
         color: '#00ff9d',
