@@ -15,7 +15,7 @@ const getBuildId = () => {
 };
 
 const buildId = getBuildId();
-console.log(`Building with ID: ${buildId}`);
+console.log(`[FORCE BUILD] Building with ID: ${buildId}`);
 
 // https://vitejs.dev/config/
 export default defineConfig({
