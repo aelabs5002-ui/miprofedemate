@@ -43,6 +43,13 @@ const StudentSelectionScreen: React.FC = () => {
 
             setStudents(data || []);
 
+            // 3. Auto-select if only 1 student
+            if (data && data.length === 1) {
+                // Auto-enter immediately
+                handleSelectStudent(data[0]);
+                return;
+            }
+
         } catch (err: any) {
             console.error('Error fetching students:', err);
             // Don't sign out on DB error, just show empty or error state
@@ -69,83 +76,7 @@ const StudentSelectionScreen: React.FC = () => {
         localStorage.setItem('tpdm_active_grade', s.grade);
     };
 
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [newStudentName, setNewStudentName] = useState('');
-    const [newStudentGrade, setNewStudentGrade] = useState('');
-    const [newAvatarId, setNewAvatarId] = useState('default');
-    const [creating, setCreating] = useState(false);
-
-    const handleAddStudent = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!newStudentName.trim()) {
-            alert('Por favor ingresa un nombre válido.');
-            return;
-        }
-
-        setCreating(true);
-        setError(null);
-
-        try {
-            // 1. Get Real User
-            const { data: { user }, error: userErr } = await supabase.auth.getUser();
-            if (userErr || !user) throw new Error('No hay sesión de usuario activa.');
-
-            // 2. Ensure Parent Exists (Fix FK violation)
-            const { error: parentErr } = await supabase
-                .from('parents')
-                .upsert(
-                    { id: user.id, email: user.email || null },
-                    { onConflict: 'id' }
-                );
-
-            if (parentErr) {
-                console.error('Error ensuring parent row:', parentErr);
-                throw parentErr;
-            }
-
-            // 3. Insert Student
-            const { data, error: insertError } = await supabase
-                .from('students')
-                .insert([
-                    {
-                        parent_id: user.id,
-                        display_name: newStudentName.trim(), // Updated column name
-                        grade: newStudentGrade,
-                        avatar_id: newAvatarId || 'default'
-                    }
-                ])
-                .select('*'); // Important to get the ID back
-
-            if (insertError) throw insertError;
-
-            // Success: Auto-select key logic
-            if (data && data.length > 0) {
-                // Auto-enter the app with the new student
-                handleSelectStudent(data[0]);
-                // Close modal just in case, though app will navigation away
-                setShowAddModal(false);
-                setNewStudentName('');
-                setNewStudentGrade('');
-                setNewAvatarId('default');
-            } else {
-                // Fallback if no data returned
-                await fetchStudents();
-                setShowAddModal(false);
-                setNewStudentName('');
-                setNewStudentGrade('');
-            }
-
-        } catch (err: any) {
-            console.error('Error creating student:', err);
-            // Alert instead of global error to keep modal open if possible, 
-            // or just let the global error catch it (which renders the error screen).
-            // For better UX during creation, alert is safer to keep context.
-            alert(err.message || 'Error al crear estudiante');
-        } finally {
-            setCreating(false);
-        }
-    };
+    // Removal of handleAddStudent and form states as per requirement "1 padre = 1 estudiante"
 
     if (loading) {
         return (
@@ -165,8 +96,8 @@ const StudentSelectionScreen: React.FC = () => {
                         Reintentar
                     </button>
                     {/* Escape hatch in case of error */}
-                    <button onClick={() => { setError(null); setShowAddModal(true); }} style={{ ...styles.btnRetry, marginLeft: 10 }}>
-                        Crear Estudiante
+                    <button onClick={() => window.location.reload()} style={{ ...styles.btnRetry, marginLeft: 10 }}>
+                        Recargar App
                     </button>
                 </div>
                 {/* Modal de Error también podría ir aquí, pero simplificamos */}
@@ -184,15 +115,9 @@ const StudentSelectionScreen: React.FC = () => {
 
                 {students.length === 0 ? (
                     <div style={styles.emptyState}>
-                        <p>No hay estudiantes asociados.</p>
-                        <button
-                            onClick={() => setShowAddModal(true)}
-                            style={styles.primaryButton}
-                        >
-                            + CREAR ESTUDIANTE
-                        </button>
+                        <p>No se encontraron estudiantes asociados a esta cuenta.</p>
                         <div style={styles.warningBox}>
-                            ⚠️ Modo Beta: Contacta a soporte para problemas.
+                            ⚠️ Contacta a soporte si crees que esto es un error.
                         </div>
                     </div>
                 ) : (
@@ -211,102 +136,11 @@ const StudentSelectionScreen: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                        <div style={{ marginTop: 20 }}>
-                            <button
-                                onClick={() => setShowAddModal(true)}
-                                style={styles.secondaryButton}
-                            >
-                                + Agregar otro estudiante
-                            </button>
-                        </div>
                     </>
                 )}
             </div>
 
-            {/* MODAL CREAR ESTUDIANTE */}
-            {showAddModal && (
-                <div style={styles.modalOverlay}>
-                    <div style={styles.modalContent}>
-                        <button
-                            onClick={() => setShowAddModal(false)}
-                            style={styles.closeButton}
-                            aria-label="Cerrar"
-                        >
-                            &times;
-                        </button>
-
-                        <h2 style={{ marginBottom: 20, textAlign: 'center', color: '#fff' }}>
-                            Nuevo Recluta
-                        </h2>
-
-                        <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            <div>
-                                <label style={styles.label}>Nombre del Agente</label>
-                                <input
-                                    type="text"
-                                    placeholder="Ej. Juan"
-                                    value={newStudentName}
-                                    onChange={e => setNewStudentName(e.target.value)}
-                                    style={styles.input}
-                                    required
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div>
-                                <label style={styles.label}>Grado / Nivel</label>
-                                <select
-                                    value={newStudentGrade}
-                                    onChange={e => setNewStudentGrade(e.target.value)}
-                                    style={styles.select}
-                                    required
-                                >
-                                    <option value="" style={styles.option}>Selecciona Grado</option>
-                                    <option value="1ro Primaria" style={styles.option}>1ro Primaria</option>
-                                    <option value="2do Primaria" style={styles.option}>2do Primaria</option>
-                                    <option value="3ro Primaria" style={styles.option}>3ro Primaria</option>
-                                    <option value="4to Primaria" style={styles.option}>4to Primaria</option>
-                                    <option value="5to Primaria" style={styles.option}>5to Primaria</option>
-                                    <option value="6to Primaria" style={styles.option}>6to Primaria</option>
-                                    <option value="1ro Secundaria" style={styles.option}>1ro Secundaria</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label style={styles.label}>Avatar</label>
-                                <select
-                                    value={newAvatarId}
-                                    onChange={e => setNewAvatarId(e.target.value)}
-                                    style={styles.select}
-                                >
-                                    <option value="default" style={styles.option}>Por defecto</option>
-                                    <option value="avatar_1" style={styles.option}>Avatar 1</option>
-                                    <option value="avatar_2" style={styles.option}>Avatar 2</option>
-                                    <option value="avatar_3" style={styles.option}>Avatar 3</option>
-                                </select>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAddModal(false)}
-                                    style={styles.cancelButton}
-                                    disabled={creating}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    style={{ ...styles.primaryButton, flex: 1, justifyContent: 'center' }}
-                                    disabled={creating}
-                                >
-                                    {creating ? 'Guardando...' : 'Crear Agente'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            {/* Modal Remove */}
         </div>
     );
 };
