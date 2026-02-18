@@ -39,8 +39,41 @@ const OtpConfirmScreen: React.FC<OtpConfirmScreenProps> = ({ email, alVolverALog
 
             if (error) throw error;
 
-            // Éxito: La sesión se actualiza y AppNavigator gestionará el cambio de pantalla.
-            setSuccessMsg('¡Cuenta confirmada! Iniciando sesión...');
+            // Éxito: Auth session establecida
+
+            if (data.user || data.session?.user) {
+                const userId = data.user?.id || data.session?.user.id;
+
+                if (userId) {
+                    // Insert Legal Acceptance NOW that we have a session
+                    const { error: legalError } = await supabase
+                        .from('legal_acceptances')
+                        .insert([
+                            {
+                                parent_id: userId,
+                                document_type: 'terms',
+                                version: '1.0',
+                                user_agent: navigator.userAgent
+                            },
+                            {
+                                parent_id: userId,
+                                document_type: 'privacy',
+                                version: '1.0',
+                                user_agent: navigator.userAgent
+                            }
+                        ]);
+
+                    if (legalError) {
+                        console.error('Error persisting legal acceptance:', legalError);
+                        // Optional: decide if we want to block login or just log it.
+                        // Requirement says: "Si el INSERT falla: mostrar error y NO continuar."
+                        throw new Error('Error al registrar aceptación de términos legal.');
+                    }
+                }
+            }
+
+            // Éxito total: La sesión se actualiza y AppNavigator gestionará el cambio de pantalla.
+            setSuccessMsg('¡Cuenta confirmada y términos aceptados! Iniciando sesión...');
 
             // NOTA: No borramos pending_signup_email aquí. 
             // Se borra en AppNavigator cuando detecta la sesión.

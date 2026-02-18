@@ -84,29 +84,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp, a
             if (error) throw error;
 
             if (data?.user) {
-                // Insert Legal Acceptance
-                const { error: legalError } = await supabase
-                    .from('legal_acceptances')
-                    .insert([
-                        {
-                            parent_id: data.user.id,
-                            document_type: 'terms',
-                            version: '1.0',
-                            user_agent: navigator.userAgent
-                        },
-                        {
-                            parent_id: data.user.id,
-                            document_type: 'privacy',
-                            version: '1.0',
-                            user_agent: navigator.userAgent
-                        }
-                    ]);
-
-                if (legalError) {
-                    // Critical error: Don't proceed if legal acceptance fails
-                    console.error('Error persisting legal acceptance:', legalError);
-                    throw new Error('Error al guardar aceptación de términos. Intente nuevamente.');
-                }
+                // User created successfully
             }
 
             // Éxito: Guardar email y navegar a OTP
