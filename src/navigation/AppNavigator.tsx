@@ -14,6 +14,7 @@ import { MissionBuildStatus, MissionRequest, MissionPlan } from '../types/missio
 import { MissionService } from '../servicios/MissionService';
 import PadreBibliotecaTutorScreen from '../screens/PadreBibliotecaTutorScreen';
 import PanelAlumnoScreen from '../screens/PanelAlumnoScreen';
+import TermsConditionScreen from '../screens/TermsConditionScreen';
 
 /**
  * Navegador principal de la aplicación (Bloque C1).
@@ -22,7 +23,7 @@ import PanelAlumnoScreen from '../screens/PanelAlumnoScreen';
 const AppNavigator: React.FC = () => {
   const { sesion } = useApp();
   const [rutaActual, setRutaActual] = useState('Misión');
-  const [vistaAuth, setVistaAuth] = useState<'Login' | 'Registro'>('Login');
+  const [vistaAuth, setVistaAuth] = useState<'Login' | 'Registro' | 'Terminos'>('Login');
 
   // Navigation Stacks/Modals
   const [mostrarSubirTarea, setMostrarSubirTarea] = useState(false);
@@ -40,7 +41,9 @@ const AppNavigator: React.FC = () => {
   if (!sesion.estaAutenticado) {
     return vistaAuth === 'Login'
       ? <LoginScreen alIrARegistro={() => setVistaAuth('Registro')} />
-      : <RegisterScreen alIrALogin={() => setVistaAuth('Login')} />;
+      : vistaAuth === 'Registro'
+        ? <RegisterScreen alIrALogin={() => setVistaAuth('Login')} alIrATerminos={() => setVistaAuth('Terminos')} />
+        : <TermsConditionScreen alVolver={() => setVistaAuth('Registro')} />;
   }
 
   // --- Navigación ---

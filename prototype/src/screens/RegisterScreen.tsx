@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 interface RegisterScreenProps {
     alIrALogin: () => void;
     alIrAOtp: (email: string) => void;
+    alIrATerminos: () => void;
 }
 
 /**
@@ -10,13 +11,14 @@ interface RegisterScreenProps {
  * Orientada al Padre/Representante.
  * Sin gamificación excesiva ni botón atrás.
  */
-const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp }) => {
+const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp, alIrATerminos }) => {
     const [nombre, setNombre] = useState('');
     const [email, setEmail] = useState('');
     const [confirmEmail, setConfirmEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [mostrarPassword, setMostrarPassword] = useState(false);
+    const [acceptTerms, setAcceptTerms] = useState(false);
 
     // Estados de feedback
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -33,7 +35,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp })
         confirmEmail.trim().length > 0 &&
         emailsMatch &&
         isPasswordValid &&
-        passwordsMatch;
+        passwordsMatch &&
+        acceptTerms;
 
     const manejarRegistro = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -57,6 +60,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp })
 
         if (email.trim() !== confirmEmail.trim()) {
             setErrorMsg('Los correos no coinciden.');
+            return;
+        }
+
+        if (!acceptTerms) {
+            setErrorMsg('Debes aceptar los términos y condiciones.');
             return;
         }
 
@@ -213,6 +221,20 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp })
                                 style={styles.input}
                             />
                         </div>
+                    </div>
+
+                    {/* Checkbox: Terms */}
+                    <div style={styles.checkboxContainer}>
+                        <input
+                            type="checkbox"
+                            checked={acceptTerms}
+                            onChange={(e) => setAcceptTerms(e.target.checked)}
+                            style={styles.checkbox}
+                            id="terms-checkbox"
+                        />
+                        <label htmlFor="terms-checkbox" style={styles.checkboxLabel}>
+                            Acepto los <span onClick={alIrATerminos} style={styles.linkTerms}>Términos y Condiciones</span>
+                        </label>
                     </div>
 
                     {/* Mensajes de Estado Inline */}
@@ -485,6 +507,30 @@ const styles = {
         cursor: 'not-allowed',
         boxShadow: 'none',
         transform: 'none',
+    },
+    checkboxContainer: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        marginTop: '8px',
+        paddingLeft: '4px',
+    },
+    checkbox: {
+        width: '18px',
+        height: '18px',
+        cursor: 'pointer',
+        accentColor: '#34D399',
+    },
+    checkboxLabel: {
+        fontSize: '13px',
+        color: '#D1D5DB',
+        cursor: 'pointer',
+    },
+    linkTerms: {
+        color: '#34D399',
+        fontWeight: '700',
+        textDecoration: 'underline',
+        cursor: 'pointer',
     },
 };
 
