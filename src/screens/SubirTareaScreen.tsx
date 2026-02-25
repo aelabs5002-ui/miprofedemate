@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 interface SubirTareaScreenProps {
     alVolver: () => void;
@@ -11,10 +12,90 @@ interface SubirTareaScreenProps {
  */
 const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciarCreacion }) => {
 
-    // Simular acción de continuar
-    const handleContinue = () => {
-        // En funcionalidad real, aquí validaríamos que haya archivo subido
-        alIniciarCreacion('new-mission-from-task');
+    const [file, setFile] = useState<File | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [taskAssetId, setTaskAssetId] = useState<string | null>(null);
+
+    const openFilePicker = (acceptType: string, capture?: string) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = acceptType;
+        if (capture) {
+            input.capture = capture;
+        }
+        input.style.display = 'none';
+
+        input.onchange = (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            if (target.files && target.files.length > 0) {
+                const selectedFile = target.files[0];
+                console.log("FILE_SELECTED", selectedFile.name);
+                setFile(selectedFile);
+                setErrorMsg(null);
+            }
+        };
+
+        document.body.appendChild(input);
+        console.log("PICKER_CLICK");
+        input.click();
+
+        setTimeout(() => {
+            document.body.removeChild(input);
+        }, 0);
+    };
+
+    const handleContinue = async () => {
+        if (!file) {
+            setErrorMsg('SELECCIONA UN ARCHIVO PRIMERO (PDF/IMAGEN).');
+            return;
+        }
+
+        try {
+            setUploading(true);
+            setErrorMsg(null);
+
+            const studentId = localStorage.getItem('selected_student_id');
+            if (!studentId) throw new Error("No hay un Agente (student_id) seleccionado activo.");
+
+            const assetId = crypto.randomUUID();
+            const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+            const dateStr = new Date().toISOString().split('T')[0];
+            const storagePath = `${studentId}/${dateStr}/${assetId}.${ext}`;
+
+            // 1) Subir archivo a task-uploads
+            const { error: uploadError } = await supabase.storage
+                .from('task-uploads')
+                .upload(storagePath, file, { upsert: true });
+
+            if (uploadError) throw new Error('Falla de red en carga Storage: ' + uploadError.message);
+
+            // 2) Insertar registro en public.task_assets con los campos exactos pedidos
+            const { error: dbError } = await supabase
+                .from('task_assets')
+                .insert({
+                    id: assetId,
+                    student_id: studentId,
+                    bucket: 'task-uploads',
+                    path: storagePath,
+                    status: 'pending',
+                    mime_type: file.type || 'application/octet-stream',
+                    size_bytes: file.size,
+                    original_filename: file.name,
+                    source: 'web'
+                });
+
+            if (dbError) throw new Error('Fallo al registrar asset en BD: ' + dbError.message);
+
+            setTaskAssetId(assetId);
+            console.log('[SubirTareaScreen] task_asset_id generado y guardado:', assetId);
+
+        } catch (error: any) {
+            console.error('Upload error:', error);
+            setErrorMsg(error.message || 'Error desconocido');
+        } finally {
+            setUploading(false);
+        }
     };
 
     return (
@@ -64,12 +145,28 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </div>
                 </div>
 
-                {/* Main Text */}
+                {/* Main Text & Status UI */}
                 <div style={styles.instructionBlock}>
                     <h2 style={styles.mainTitle}>TRANSMITIR MATERIAL</h2>
                     <p style={styles.subTitle}>
                         Escanea o sube la información del objetivo para análisis táctico de la IA.
                     </p>
+                    {errorMsg && (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12 }}>
+                            {errorMsg}
+                        </div>
+                    )}
+                    {taskAssetId ? (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(52,211,153,0.1)', border: '1px solid #34D399', borderRadius: 8, color: '#34D399', fontSize: 12, fontWeight: 'bold' }}>
+                            ✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}
+                        </div>
+                    ) : (
+                        file && (
+                            <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(96,165,250,0.1)', border: '1px solid #60A5FA', borderRadius: 8, color: '#60A5FA', fontSize: 12, fontWeight: 'bold' }}>
+                                ARCHIVO LISTO: {file.name}
+                            </div>
+                        )
+                    )}
                 </div>
 
                 {/* Consejos (Intel Card) */}
@@ -115,10 +212,15 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </div>
                 </div>
 
+                {/* Marcador visible UI Debug */}
+                <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: '#60A5FA', fontWeight: 'bold' }}>
+                    BUILD_UPLOAD_FIX ✅ 2026-02-25
+                </div>
+
                 {/* Botones de Acción */}
                 <div style={styles.actionCardsContainer}>
                     {/* Camera Button */}
-                    <button style={styles.actionCard} onClick={() => alert('Abrir Cámara')}>
+                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*', 'environment')}>
                         <div style={styles.scanLine} />
                         <div style={{ ...styles.actionIconBox, color: '#34D399', borderColor: '#059669' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -131,7 +233,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </button>
 
                     {/* PDF Button */}
-                    <button style={styles.actionCard} onClick={() => alert('Seleccionar PDF')}>
+                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*,application/pdf')}>
                         <div style={{ ...styles.actionIconBox, color: '#60A5FA', borderColor: '#2563EB' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -147,7 +249,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 </div>
 
                 {/* Galería Link */}
-                <button style={styles.galleryLink} onClick={() => alert('Abrir Galería')}>
+                <button style={styles.galleryLink} onClick={() => openFilePicker('image/*')}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 8 }}>
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                         <circle cx="8.5" cy="8.5" r="1.5" />
@@ -159,11 +261,21 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 <div style={{ flex: 1 }} />
 
                 {/* Continue Button */}
-                <button style={styles.continueButton} onClick={handleContinue}>
-                    <span>PROCESAR DATOS</span>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 8 }}>
-                        <polyline points="9 18 15 12 9 6" />
-                    </svg>
+                <button
+                    style={{ ...styles.continueButton, opacity: (!file && !taskAssetId) || uploading ? 0.5 : 1 }}
+                    onClick={taskAssetId ? () => alIniciarCreacion(taskAssetId) : handleContinue}
+                    disabled={uploading || (!file && !taskAssetId)}
+                >
+                    <span>
+                        {uploading ? 'SUBIENDO...' :
+                            taskAssetId ? 'CONTINUAR' :
+                                (errorMsg ? 'REINTENTAR' : 'PROCESAR DATOS')}
+                    </span>
+                    {!uploading && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 8 }}>
+                            <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                    )}
                 </button>
 
             </div>
