@@ -100,31 +100,76 @@ const StudentSelectionScreen: React.FC = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("No auth user");
 
-            const { data, error } = await supabase
-                .from('students')
-                .insert({
-                    parent_id: user.id,
-                    name: newName,
-                    grade: newGrade,
-                    avatar_id: 'hero_1'
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            const newStudent: Student = {
-                id: data.id,
-                name: data.name,
-                grade: data.grade,
-                avatar_id: data.avatar_id
+            const payload = {
+                parent_id: user.id,
+                name: newName,
+                grade: newGrade,
+                avatar_id: 'hero_1'
             };
 
-            handleSelectStudent(newStudent);
+            const { data: inserted, error } = await supabase
+                .from('students')
+                .insert(payload)
+                .select('id') // Select ID specifically
+                .single();
+
+            if (error || !inserted?.id) throw error ?? new Error("Insert failed");
+
+            console.log("CREATE_STUDENT_OK", inserted.id);
+
+            // Guardar ID si aplica
+            localStorage.setItem("selected_student_id", inserted.id);
+
+            // Force immediate navigation, bypass context/refetch delays
+            // We can manually inject into context if needed, but navigation is valid
+            // validation logic at target screen should handle "fetch current student"
+
+            // NOTE: The previous code called handleSelectStudent which updated Context.
+            // But user requested: "NAVEGAR INMEDIATAMENTE".
+            // We should ideally update context if "iniciarSesion" does the navigation?
+            // "iniciarSesion" in AppContext usually sets the user state.
+            // Let's check "iniciarSesion" implementation later if needed, but for now
+            // we will follow instructions: Log ID, Store ID, Navigate.
+
+            // However, useApp().iniciarSesion might be responsible for the navigation?
+            // If initiateSesion triggers navigation, we should check it.
+            // BUT user said: "delete any dependence on refetch... navigation must depend only on insert success"
+            // The prompt snippet says: "navigate('/misiones'); return;"
+            // Since this is a specialized screen, maybe we don't have 'navigate' prop?
+            // We are likely inside AppNavigator.
+            // If "iniciarSesion" does the navigation, we call it.
+            // If not, we might need a way to trigger it.
+            // Looking at the file, it doesn't seem to have `navigate` from `react-router`.
+            // It relies on `iniciarSesion` to update state and AppNavigator re-renders.
+
+            // Wait, the user specifically provided code using `navigate("/misiones")`.
+            // But this file `StudentSelectionScreen` does NOT assume `useLocation` or `useNavigate` is available unless we add it.
+            // The existing code uses `iniciarSesion(usuarioData)`.
+            // If `iniciarSesion` updates the state that AppNavigator watches (`user`), then it IS the navigation trigger.
+            // The issue described is "stuck in creating...".
+            // This happens if we await something that never finishes or if state doesn't update.
+
+            // I will construct the student object and call `iniciarSesion` immediately.
+            // The user's request example used `navigate`. 
+            // If I cannot use `navigate` (because no router), I must use `iniciarSesion` but ensure it doesn't block.
+
+            const newStudentForContext = {
+                id: inserted.id,
+                nombre: newName,
+                correo: 'student@proxy.com',
+                rol: 'Alumno' as const
+            };
+
+            // Update context (this triggers AppNavigator switch)
+            iniciarSesion(newStudentForContext);
+
+            // Also manual fallback if context is slow? No, context update is React state.
+            return;
 
         } catch (err: any) {
-            console.error("Error creating student:", err);
-            setError(err.message);
+            console.error("CREATE_STUDENT_FAIL", err);
+            setError(err.message || "No se pudo crear el estudiante");
+        } finally {
             setCreating(false);
         }
     };

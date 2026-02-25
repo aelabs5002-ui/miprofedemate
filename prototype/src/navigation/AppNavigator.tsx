@@ -192,8 +192,15 @@ const AppNavigator: React.FC = () => {
 
   // 2. CRITICAL GATE: If authenticated but NO STUDENTS -> Force Selection/Creation Screen
   // This takes precedence over "sesion.estaAutenticado" (which is App Context state)
-  if (hasStudents === false) {
-    // If we are here, it means DB query returned 0 rows.
+  // FIX: If we just created a student and logged in (sesion.estaAutenticado=true), we must bypass this check
+  // because hasStudents might still be false (stale).
+  // FIX DEFINITIVO: Usar localStorage como fast-path
+  const selectedId = localStorage.getItem("selected_student_id");
+  console.log("GATE selected_student_id", selectedId, "hasStudents", hasStudents, "estaAutenticado", sesion.estaAutenticado);
+
+  if (hasStudents === false && !sesion.estaAutenticado && !selectedId) {
+    // If we are here, it means DB query returned 0 rows AND we haven't manually started a session yet
+    // AND we don't have a locally stored ID (fast path).
     // We force StudentSelectionScreen which will now show "Create Agent".
     return <StudentSelectionScreen />;
   }

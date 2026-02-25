@@ -1,0 +1,87 @@
+PLANTILLA GLOBAL #00 — ECOSISTEMA
+Prevención del “Error del Repositorio Anidado Fantasma”
+(OBLIGATORIA PARA TODO PROYECTO)
+
+====================================
+BLOQUE 0 — PREFLIGHT (OBLIGATORIO)
+====================================
+Antes de cualquier acción:
+- git rev-parse --show-toplevel
+- git branch --show-current
+- git remote -v
+Criterios:
+- UN solo .git en la raíz
+- Rama: main
+- origin existe y apunta al repo correcto
+Si falla algo → DETENER y pedir confirmación.
+
+====================================
+BLOQUE 1 — GIT: ESTRUCTURA
+====================================
+- PROHIBIDO git init en subcarpetas.
+- PROHIBIDO commit/push desde subdirectorios.
+- /prototype, /frontend, /app:
+  - Nunca repositorios.
+  - Nunca contienen .git.
+Regla maestra: la raíz es la única fuente de verdad.
+
+====================================
+BLOQUE 2 — DETECCIÓN AUTOMÁTICA (CRÍTICO)
+====================================
+Error objetivo: “Repositorio Anidado Fantasma”.
+Triggers:
+- Más de un .git
+- git status limpio con cambios reales
+- non-fast-forward recurrente
+- origin inconsistente
+Acción:
+- Pausar
+- Alertar
+- Proponer eliminación del .git anidado + reindexado
+
+====================================
+BLOQUE 3 — HISTORIAL
+====================================
+- Historial lineal.
+- Preferir git pull --rebase.
+- Resolver conflictos antes de push.
+- PROHIBIDO push -f sin autorización explícita.
+
+====================================
+BLOQUE 4 — DOCKER
+====================================
+- Dockerfile desde la raíz.
+- Build context = raíz (salvo orden explícita).
+- Rutas COPY coherentes con la raíz.
+
+====================================
+BLOQUE 5 — ENV & BUILD ID
+====================================
+- VITE_* se inyecta en build.
+- NODE_ENV no en .env de producción (Vite).
+- VITE_BUILD_ID:
+  - Autogenerado si no existe
+  - Visible en UI (login/footer)
+
+====================================
+BLOQUE 6 — DEPLOY
+====================================
+- Deploy solo desde main.
+- Auto-deploy por push a origin/main.
+- Ante dudas: rebuild limpio antes de depurar.
+
+====================================
+BLOQUE 7 — SEGURIDAD
+====================================
+- Antigravity ejecuta; el usuario autoriza.
+- Acciones destructivas requieren confirmación:
+  - borrar .git
+  - reescribir historial
+  - force push
+
+====================================
+REGLA FINAL
+====================================
+Si algo se comporta raro: revisar Git antes que Docker o la app.
+
+— PLANTILLA GLOBAL #00 (ACTIVA)

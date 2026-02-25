@@ -28,6 +28,7 @@ const OtpConfirmScreen: React.FC<OtpConfirmScreenProps> = ({ email, alVolverALog
 
         try {
             const { supabase } = await import('../lib/supabaseClient');
+            const { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } = await import('../config/legalVersions');
 
             // 1. Verificar OTP
             const { data, error } = await supabase.auth.verifyOtp({
@@ -36,57 +37,91 @@ const OtpConfirmScreen: React.FC<OtpConfirmScreenProps> = ({ email, alVolverALog
                 type: 'signup'
             });
 
-            if (error) throw error;
+            if (error || !data?.user) {
+                console.error("OTP_VERIFY_FAIL", error);
+                throw new Error("OTP verification failed");
+            }
+
             console.log("LEGAL_STEP_1_VERIFY_OK");
 
-            // 2. Obtener usuario real explícitamente
-            const { data: userData, error: userError } = await supabase.auth.getUser();
-            const userId = userData.user?.id;
-            console.log("LEGAL_STEP_2_GETUSER", userId);
+            // 2. Obtener usuario directamente de la respuesta
+            const parentId = data.user.id;
+            const parentEmail = data.user.email;
+            console.log("LEGAL_STEP_2_USER_ID", parentId);
 
-            if (userError || !userId) {
-                console.error("LEGAL_GetUser_FAIL", userError);
-                await supabase.auth.signOut(); // Revert session
-                throw new Error("No se pudo verificar la identidad del usuario.");
-            }
+            // 2.1 Asegurar existencia de registro en tabla 'parents' (Fail-Fast)
+            console.log("PARENT_STEP_1_UPSERT_START", parentId);
 
-            // 3. Insertar Legal Acceptance
-            console.log("LEGAL_STEP_3_INSERT_START");
-
-            const { data: legalData, error: legalError } = await supabase
-                .from('legal_acceptances')
-                .insert({
-                    parent_id: userId,
-                    terms_version: '1.0',
-                    privacy_version: '1.0',
-                    accepted_at: new Date().toISOString(),
-                    user_agent: navigator.userAgent,
-                    locale: navigator.language
-                })
-                .select('id,parent_id,accepted_at')
+            const { data: parentRow, error: parentErr } = await supabase
+                .from("parents")
+                .upsert(
+                    {
+                        id: parentId,
+                        email: parentEmail // Se agrega email si column existe, sino supabase lo ignora si no está en schema o lanza error si es strict
+                    },
+                    { onConflict: "id" }
+                )
+                .select("id")
                 .single();
 
-            // 4. Fail-Fast Check
-            if (legalError) {
-                console.error("LEGAL_STEP_X_FAIL", legalError);
-                // CRITICAL: Sign out to prevent AppNavigator from remaining in "Auth" state
-                await supabase.auth.signOut();
-                throw new Error("Error al registrar aceptación de términos.");
+            if (parentErr || !parentRow?.id) {
+                console.error("PARENT_STEP_FAIL", parentErr);
+                await supabase.auth.signOut(); // Bloquear
+                throw new Error("Parent profile upsert failed");
             }
 
-            console.log("LEGAL_STEP_4_INSERT_OK", legalData);
+            console.log("PARENT_STEP_2_UPSERT_OK", parentRow.id);
+
+            // 3. Verificar si ya existe aceptación legal (Idempotencia)
+            const { data: existing } = await supabase
+                .from("legal_acceptances")
+                .select("id")
+                .eq("parent_id", parentId)
+                .maybeSingle();
+
+            if (existing?.id) {
+                console.log("[LEGAL] already exists", existing.id);
+                // Si ya existe, NO intentamos insertar de nuevo.
+                // Continuamos al Auth Flow normal.
+            } else {
+                // 4. Insertar Legal Acceptance (FAIL FAST)
+                console.log("LEGAL_STEP_3_INSERT_START");
+
+                const payload = {
+                    parent_id: parentId,
+                    accepted_terms: true,
+                    accepted_privacy: true,
+                    terms_version: CURRENT_TERMS_VERSION,
+                    privacy_version: CURRENT_PRIVACY_VERSION,
+                    accepted_at: new Date().toISOString(),
+                    source: "otp_confirm",
+                };
+
+                const { data: inserted, error: insErr } = await supabase
+                    .from("legal_acceptances")
+                    .insert(payload)
+                    .select("id")
+                    .single();
+
+                if (insErr || !inserted?.id) {
+                    console.error("LEGAL_INSERT_FAIL", insErr);
+                    // CRITICAL: Sign out to prevent navigation
+                    await supabase.auth.signOut();
+                    throw new Error("Legal acceptance insert failed");
+                }
+
+                console.log("[LEGAL] inserted id", inserted.id);
+            }
 
             // Éxito Total
             setSuccessMsg('¡Cuenta confirmada y términos aceptados! Iniciando sesión...');
-            // AppNavigator detectará la sesión (ya establecida) y navegará.
+            // AppNavigator detectará la sesión y navegará.
 
         } catch (err: any) {
             console.error("LEGAL_FLOW_ERROR", err);
             setErrorMsg(err.message || 'Error en validación.');
             setLoading(false);
-            // Ensure we are signed out if generic error occurred after verify?
-            // Safer to just show error. If session exists but code failed, AppNavigator takes over.
-            // But we handled legalError with signOut already.
+            // El usuario permanece en la pantalla de OTP para reintentar
         }
     };
 
