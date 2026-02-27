@@ -195,48 +195,9 @@ const AppNavigator: React.FC = () => {
   // FIX: If we just created a student and logged in (sesion.estaAutenticado=true), we must bypass this check
   // because hasStudents might still be false (stale).
   // FIX DEFINITIVO: Usar localStorage como fast-path
-  const [localSelectedId, setLocalSelectedId] = useState<string | null>(localStorage.getItem("selected_student_id"));
-  const selectedId = localStorage.getItem("selected_student_id") || localSelectedId;
-
+  const selectedId = localStorage.getItem("selected_student_id");
   console.log("GATE selected_student_id", selectedId, "hasStudents", hasStudents, "estaAutenticado", sesion.estaAutenticado);
 
-  const [isAutosetting, setIsAutosetting] = useState(false);
-
-  useEffect(() => {
-    const autoSetStudent = async () => {
-      const currentId = localStorage.getItem("selected_student_id");
-      if (sesion.estaAutenticado === true && hasStudents === true && !currentId && !isAutosetting) {
-        setIsAutosetting(true);
-        try {
-          const { data: authData } = await supabase.auth.getUser();
-          const parentUserId = authData?.user?.id;
-          if (!parentUserId) return;
-
-          const { data: students, error } = await supabase
-            .from('students')
-            .select('id')
-            .eq('parent_id', parentUserId)
-            .limit(2);
-
-          if (error) {
-            console.warn('[AppNavigator] Error en autoset:', error);
-            return;
-          }
-
-          if (students && students.length === 1) {
-            localStorage.setItem('selected_student_id', students[0].id);
-            console.log('[AppNavigator] AUTOSET selected_student_id', students[0].id);
-            setLocalSelectedId(students[0].id);
-          }
-        } catch (err) {
-          console.warn('[AppNavigator] Exception en autoset:', err);
-        } finally {
-          setIsAutosetting(false);
-        }
-      }
-    };
-    autoSetStudent();
-  }, [sesion.estaAutenticado, hasStudents]);
   if (hasStudents === false && !sesion.estaAutenticado && !selectedId) {
     // If we are here, it means DB query returned 0 rows AND we haven't manually started a session yet
     // AND we don't have a locally stored ID (fast path).
