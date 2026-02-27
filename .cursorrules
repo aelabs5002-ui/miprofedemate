@@ -59,9 +59,6 @@ BLOQUE 5 — ENV & BUILD ID
 ====================================
 - VITE_* se inyecta en build.
 - NODE_ENV no en .env de producción (Vite).
-- VITE_BUILD_ID:
-  - Autogenerado si no existe
-  - Visible en UI (login/footer)
 
 ====================================
 BLOQUE 6 — DEPLOY
