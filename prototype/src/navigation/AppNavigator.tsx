@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -136,9 +136,55 @@ const AppNavigator: React.FC = () => {
     checkStudents();
   }, [supabaseSession]);
 
+  const [autoSetDone, setAutoSetDone] = useState(false);
+  const autoSetRunning = useRef(false);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (!sesion.estaAutenticado) return;
+        if (!hasStudents) return;
+        if (autoSetDone) return;
+        if (autoSetRunning.current) return;
+
+        const existing = localStorage.getItem('selected_student_id');
+        if (existing) { setAutoSetDone(true); return; }
+
+        autoSetRunning.current = true;
+
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        if (authErr) return;
+        const parentId = authData?.user?.id;
+        if (!parentId) return;
+
+        const { data: students, error } = await supabase
+          .from('students')
+          .select('id')
+          .eq('parent_id', parentId)
+          .limit(2);
+
+        if (error) return;
+
+        if (students && students.length === 1) {
+          localStorage.setItem('selected_student_id', students[0].id);
+          console.log('[AppNavigator] AUTOSET selected_student_id', students[0].id);
+        }
+
+        setAutoSetDone(true);
+      } finally {
+        autoSetRunning.current = false;
+      }
+    };
+    run();
+  }, [sesion.estaAutenticado, hasStudents, autoSetDone]);
+
 
   if (loadingAuth || (supabaseSession && checkingStudents)) {
     return <div style={{ color: 'white', padding: 20 }}>Cargando sesión...</div>;
+  }
+
+  if (sesion.estaAutenticado && hasStudents && !localStorage.getItem('selected_student_id') && !autoSetDone) {
+    return <div style={{ color: 'white', padding: 20 }}>Cargando perfil...</div>;
   }
 
   // 1. Si no hay sesión de Supabase (Padre), mostrar Login/Registro
