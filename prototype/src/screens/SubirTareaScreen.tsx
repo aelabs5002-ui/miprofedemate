@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { BUILD_ID } from '../build';
 
 interface SubirTareaScreenProps {
     alVolver: () => void;
@@ -214,7 +215,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
 
                 {/* Marcador visible UI Debug PROTO*/}
                 <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: '#60A5FA', fontWeight: 'bold' }}>
-                    BUILD_UPLOAD_FIX_PROTO ✅ 2026-02-25
+                    BUILD: {BUILD_ID}
                 </div>
 
                 {/* Botones de Acción */}

@@ -23,10 +23,11 @@ ENV CACHE_BUST=202602181835
 # Build env vars
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_BUILD_ID
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_BUILD_ID=$VITE_BUILD_ID
+
+# Generate build.ts dynamically
+RUN node -e 'require("fs").writeFileSync("src/build.ts", `export const BUILD_ID="${new Date().toISOString()}"; export const BUILD_SOURCE="docker-autogen";`);'
 
 # Clean dist again (just in case) and build
 RUN rm -rf dist && npm run build
