@@ -17,8 +17,8 @@ RUN if [ -f pnpm-lock.yaml ]; then npm install -g pnpm && pnpm install; \
     else npm ci; \
     fi
 
-# FORCE COOKIE: 2026-02-18T18:35
-ENV CACHE_BUST=202602181835
+# FORCE COOKIE: 2026-02-27T14:01
+ENV CACHE_BUST=FORCE_2026_02_27_V2
 
 # Build env vars
 ARG VITE_SUPABASE_URL
