@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { BUILD_ID } from '../build';
 
@@ -17,6 +17,12 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
     const [uploading, setUploading] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [taskAssetId, setTaskAssetId] = useState<string | null>(null);
+    const [studentId, setStudentId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const id = localStorage.getItem('selected_student_id');
+        setStudentId(id);
+    }, []);
 
     const openFilePicker = (acceptType: string, capture?: string) => {
         const input = document.createElement('input');
@@ -152,6 +158,11 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     <p style={styles.subTitle}>
                         Escanea o sube la información del objetivo para análisis táctico de la IA.
                     </p>
+                    {!studentId && (
+                        <div style={{ marginTop: 12, padding: 10, backgroundColor: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.8)', borderRadius: 10, color: '#FCA5A5', fontSize: 12 }}>
+                            Debes seleccionar un Agente/Alumno antes de cargar datos.
+                        </div>
+                    )}
                     {errorMsg && (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12 }}>
                             {errorMsg}
@@ -221,7 +232,11 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 {/* Botones de Acción */}
                 <div style={styles.actionCardsContainer}>
                     {/* Camera Button */}
-                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*', 'environment')}>
+                    <button
+                        style={styles.actionCard}
+                        onClick={() => openFilePicker('image/*', 'environment')}
+                        disabled={!studentId || uploading}
+                    >
                         <div style={styles.scanLine} />
                         <div style={{ ...styles.actionIconBox, color: '#34D399', borderColor: '#059669' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -234,7 +249,11 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </button>
 
                     {/* PDF Button */}
-                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*,application/pdf')}>
+                    <button
+                        style={styles.actionCard}
+                        onClick={() => openFilePicker('image/*,application/pdf')}
+                        disabled={!studentId || uploading}
+                    >
                         <div style={{ ...styles.actionIconBox, color: '#60A5FA', borderColor: '#2563EB' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -250,7 +269,11 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 </div>
 
                 {/* Galería Link */}
-                <button style={styles.galleryLink} onClick={() => openFilePicker('image/*')}>
+                <button
+                    style={styles.galleryLink}
+                    onClick={() => openFilePicker('image/*')}
+                    disabled={!studentId || uploading}
+                >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 8 }}>
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                         <circle cx="8.5" cy="8.5" r="1.5" />
@@ -263,9 +286,9 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
 
                 {/* Continue Button */}
                 <button
-                    style={{ ...styles.continueButton, opacity: (!file && !taskAssetId) || uploading ? 0.5 : 1 }}
+                    style={{ ...styles.continueButton, opacity: (!studentId || (!file && !taskAssetId) || uploading) ? 0.5 : 1 }}
                     onClick={taskAssetId ? () => alIniciarCreacion(taskAssetId) : handleContinue}
-                    disabled={uploading || (!file && !taskAssetId)}
+                    disabled={!studentId || uploading || (!file && !taskAssetId)}
                 >
                     <span>
                         {uploading ? 'SUBIENDO...' :
