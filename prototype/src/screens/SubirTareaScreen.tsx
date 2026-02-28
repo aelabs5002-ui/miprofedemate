@@ -105,15 +105,14 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             const { error: dbError } = await supabase
                 .from('task_assets')
                 .insert({
-                    id: assetId,
                     student_id: studentId,
-                    bucket: 'task-uploads',
-                    path: storagePath,
-                    status: 'pending',
-                    mime_type: file.type || 'application/octet-stream',
-                    size_bytes: file.size,
-                    original_filename: file.name,
-                    source: 'web'
+                    parent_id: session.user.id,
+                    mission_date: dateStr,
+                    file_type: ext,
+                    storage_bucket: 'task-uploads',
+                    storage_path: storagePath,
+                    processing_status: 'pending',
+                    error_message: null
                 });
 
             if (dbError) throw new Error('Fallo al registrar asset en BD: ' + dbError.message);
