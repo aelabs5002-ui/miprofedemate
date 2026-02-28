@@ -59,23 +59,47 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
         }
 
         try {
+            console.log("STEP 1: start upload");
             setUploading(true);
             setErrorMsg(null);
 
             const studentId = localStorage.getItem('selected_student_id');
-            if (!studentId) throw new Error("No hay un Agente (student_id) seleccionado activo.");
+            if (!studentId) {
+                console.log("STEP 1.1: aborted due to missing studentId");
+                throw new Error("No hay un Agente (student_id) seleccionado activo.");
+            }
+
+            // Validar sesión antes de subir (fix para RLS)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                console.log("STEP 1.2: aborted due to missing session");
+                throw new Error('No authenticated session. Inicie sesión nuevamente.');
+            }
 
             const assetId = crypto.randomUUID();
             const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
             const dateStr = new Date().toISOString().split('T')[0];
             const storagePath = `${studentId}/${dateStr}/${assetId}.${ext}`;
 
-            // 1) Subir archivo a task-uploads
-            const { error: uploadError } = await supabase.storage
-                .from('task-uploads')
-                .upload(storagePath, file, { upsert: true });
+            console.log('[UPLOAD DEBUG]', {
+                bucket: 'task-uploads',
+                path: storagePath,
+                selected_student_id: studentId,
+                session_user: session.user?.id,
+            });
 
-            if (uploadError) throw new Error('Falla de red en carga Storage: ' + uploadError.message);
+            console.log("STEP 2: before supabase.upload", { path: storagePath, file_name: file.name, size: file.size });
+
+            // 1) Subir archivo a task-uploads
+            const uploadResult = await supabase.storage
+                .from('task-uploads')
+                .upload(storagePath, file, { upsert: false });
+
+            console.log("STEP 3: after supabase.upload", uploadResult);
+
+            if (uploadResult.error) {
+                throw new Error('Falla de red en carga Storage: ' + uploadResult.error.message);
+            }
 
             // 2) Insertar registro en public.task_assets
             const { error: dbError } = await supabase
