@@ -34,6 +34,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
     const [taskAssetId, setTaskAssetId] = useState<string | null>(null);
     const [studentId, setStudentId] = useState<string | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -196,6 +197,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
         console.log("STEP 1: start upload", fileToUpload.name);
         setUploading(true);
         setErrorMsg(null);
+        setToastMessage("⏳ Subiendo...");
 
         try {
             const studentIdStr = localStorage.getItem('selected_student_id');
@@ -255,11 +257,14 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             if (dbError) throw new Error('Fallo al registrar asset en BD: ' + dbError.message);
 
             setTaskAssetId(assetId);
+            setToastMessage(`✅ ÉXITO: Archivo confirmado. ASSET ID: ${assetId}`);
             console.log('[SubirTareaScreen] task_asset_id generado y guardado:', assetId);
 
         } catch (error: any) {
             console.error('Upload error:', error);
-            setErrorMsg(error.message || 'Error desconocido');
+            const msg = error.message || 'Error desconocido';
+            setErrorMsg(msg);
+            setToastMessage(`❌ Error: ${msg}`);
             throw error; // Re-throw to handle it in direct caller if needed
         } finally {
             setUploading(false);
@@ -285,6 +290,26 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             <style>{`
                 html, body { overflow-x: hidden !important; width: 100% !important; max-width: 100% !important; position: relative !important; }
             `}</style>
+
+            {/* Toast Feedback */}
+            {toastMessage && (
+                <div style={{
+                    position: "fixed",
+                    bottom: "90px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    background: "#0f172a",
+                    color: "#22c55e",
+                    padding: "12px 18px",
+                    borderRadius: "12px",
+                    boxShadow: "0 0 20px rgba(0,255,120,0.4)",
+                    zIndex: 9999,
+                    maxWidth: "90%",
+                    textAlign: "center"
+                }}>
+                    {toastMessage}
+                </div>
+            )}
 
             {/* Fondo Ambiental */}
             <div style={styles.ambientBackground}>
