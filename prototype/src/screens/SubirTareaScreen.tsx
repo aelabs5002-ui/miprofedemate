@@ -61,29 +61,35 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
 
     const openCamera = async () => {
         try {
-            async function getBackCameraStream() {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(d => d.kind === "videoinput");
+            async function getCameraStreamRobust() {
+                // Intento 1 (simple, más compatible)
+                try {
+                    return await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { ideal: "environment" } },
+                        audio: false,
+                    });
+                } catch (e1) {
+                    // Intento 2 (deviceId exact)
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(d => d.kind === "videoinput");
 
-                console.log("VIDEO DEVICES:", videoDevices);
+                    const backCamera =
+                        videoDevices.find(d =>
+                            (d.label || "").toLowerCase().includes("back") ||
+                            (d.label || "").toLowerCase().includes("rear") ||
+                            (d.label || "").toLowerCase().includes("environment")
+                        ) || videoDevices[videoDevices.length - 1];
 
-                // Intentar encontrar cámara trasera
-                const backCamera =
-                    videoDevices.find(d =>
-                        d.label.toLowerCase().includes("back") ||
-                        d.label.toLowerCase().includes("rear") ||
-                        d.label.toLowerCase().includes("environment")
-                    ) || videoDevices[videoDevices.length - 1];
+                    if (!backCamera) throw e1;
 
-                return navigator.mediaDevices.getUserMedia({
-                    video: backCamera
-                        ? { deviceId: { exact: backCamera.deviceId } }
-                        : { facingMode: "environment" },
-                    audio: false
-                });
+                    return await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: backCamera.deviceId } },
+                        audio: false,
+                    });
+                }
             }
 
-            const stream = await getBackCameraStream();
+            const stream = await getCameraStreamRobust();
             streamRef.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
@@ -105,7 +111,18 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             if (error.message === "CAMERA_TIMEOUT") {
                 setErrorMsg("CAMERA_TIMEOUT");
             } else {
-                setErrorMsg("Permiso de cámara denegado o cámara no disponible.");
+                const name = error?.name || "UnknownError";
+                const msg = error?.message || "";
+
+                if (name === "NotAllowedError") {
+                    setErrorMsg(`Error cámara: ${name} ${msg} (Permiso denegado)`);
+                } else if (name === "NotFoundError") {
+                    setErrorMsg(`Error cámara: ${name} ${msg} (No hay cámara disponible)`);
+                } else if (name === "NotReadableError") {
+                    setErrorMsg(`Error cámara: ${name} ${msg} (Cámara ocupada por otra app)`);
+                } else {
+                    setErrorMsg(`Error cámara: ${name} ${msg}`);
+                }
             }
         }
     };
