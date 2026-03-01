@@ -61,10 +61,29 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
 
     const openCamera = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } },
-                audio: false
-            });
+            async function getBackCameraStream() {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === "videoinput");
+
+                console.log("VIDEO DEVICES:", videoDevices);
+
+                // Intentar encontrar cámara trasera
+                const backCamera =
+                    videoDevices.find(d =>
+                        d.label.toLowerCase().includes("back") ||
+                        d.label.toLowerCase().includes("rear") ||
+                        d.label.toLowerCase().includes("environment")
+                    ) || videoDevices[videoDevices.length - 1];
+
+                return navigator.mediaDevices.getUserMedia({
+                    video: backCamera
+                        ? { deviceId: { exact: backCamera.deviceId } }
+                        : { facingMode: "environment" },
+                    audio: false
+                });
+            }
+
+            const stream = await getBackCameraStream();
             streamRef.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
