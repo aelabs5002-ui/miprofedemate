@@ -69,6 +69,13 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 await videoRef.current.play();
+
+                await new Promise((resolve, reject) => {
+                    const v = videoRef.current;
+                    if (!v) return reject();
+                    const t = setTimeout(() => reject(new Error("CAMERA_TIMEOUT")), 4000);
+                    v.onloadedmetadata = () => { clearTimeout(t); resolve(true); };
+                });
             }
             setIsCameraOpen(true);
             setErrorMsg(null);
@@ -76,15 +83,24 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             setTaskAssetId(null);
         } catch (error: any) {
             console.error("Camera error:", error);
-            setErrorMsg("Permiso de cámara denegado o cámara no disponible.");
+            if (error.message === "CAMERA_TIMEOUT") {
+                setErrorMsg("CAMERA_TIMEOUT");
+            } else {
+                setErrorMsg("Permiso de cámara denegado o cámara no disponible.");
+            }
         }
     };
 
     const capturePhoto = () => {
-        if (!videoRef.current || !canvasRef.current) return;
-
         const video = videoRef.current;
         const canvas = canvasRef.current;
+        if (!video || !canvas) return;
+
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            setErrorMsg("La cámara aún no está lista. Espera 1 segundo e intenta de nuevo.");
+            return;
+        }
+
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
@@ -293,26 +309,44 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 {/* Camera UI */}
                 {isCameraOpen && (
                     <div style={{ width: '100%', marginBottom: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(52,211,153,0.3)' }}>
-                        <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            style={{ width: '100%', maxWidth: '400px', borderRadius: '8px', border: '2px solid #34D399', backgroundColor: '#000' }}
-                        />
-                        <canvas ref={canvasRef} style={{ display: 'none' }} />
-                        <div style={{ display: 'flex', gap: '12px', marginTop: '16px', width: '100%', maxWidth: '400px' }}>
-                            <button
-                                onClick={capturePhoto}
-                                style={{ flex: 1, padding: '12px', backgroundColor: '#34D399', color: '#064E3B', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                                CAPTURAR FOTO
-                            </button>
-                            <button
-                                onClick={closeCamera}
-                                style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', color: '#FCA5A5', border: '1px solid #FCA5A5', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                                CERRAR
-                            </button>
-                        </div>
+                        {errorMsg === "CAMERA_TIMEOUT" ? (
+                            <div style={{ textAlign: 'center', padding: '20px' }}>
+                                <div style={{ color: '#FCA5A5', marginBottom: '16px' }}>Error: No se pudo iniciar el video (Timeout).</div>
+                                <button
+                                    onClick={() => { closeCamera(); openCamera(); }}
+                                    style={{ padding: '12px 24px', backgroundColor: '#34D399', color: '#064E3B', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>
+                                    REINTENTAR
+                                </button>
+                                <button
+                                    onClick={closeCamera}
+                                    style={{ padding: '12px 24px', backgroundColor: 'transparent', color: '#FCA5A5', border: '1px solid #FCA5A5', borderRadius: '8px', fontWeight: 'bold', marginLeft: '8px' }}>
+                                    CANCELAR
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', borderRadius: '8px', border: '2px solid #34D399', backgroundColor: '#000' }}
+                                />
+                                <canvas ref={canvasRef} style={{ display: 'none' }} />
+                                <div style={{ display: 'flex', gap: '12px', marginTop: '16px', width: '100%', maxWidth: '400px' }}>
+                                    <button
+                                        onClick={capturePhoto}
+                                        style={{ flex: 1, padding: '12px', backgroundColor: '#34D399', color: '#064E3B', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                        CAPTURAR FOTO
+                                    </button>
+                                    <button
+                                        onClick={closeCamera}
+                                        style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', color: '#FCA5A5', border: '1px solid #FCA5A5', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                        CERRAR
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
