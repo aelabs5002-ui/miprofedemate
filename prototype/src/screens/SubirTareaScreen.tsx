@@ -7,6 +7,21 @@ interface SubirTareaScreenProps {
     alIniciarCreacion: (missionId: string) => void;
 }
 
+function normalizeFileType(file: File, extRaw: string) {
+    const ext = extRaw.toLowerCase().replace(".", "");
+    const mime = file?.type?.toLowerCase() || "";
+
+    if (mime.includes("pdf") || ext === "pdf") {
+        return "pdf";
+    }
+
+    if (mime.startsWith("image/") || ["png", "jpg", "jpeg", "webp"].includes(ext)) {
+        return "image";
+    }
+
+    throw new Error("Tipo de archivo no permitido. Solo imágenes o PDF.");
+}
+
 /**
  * Pantalla de Subida de Material Rediseñada (Skin: Escuadrón / Data Upload).
  * Implementación REAL de Supabase (Upload + DB Insert).
@@ -81,6 +96,8 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             const dateStr = new Date().toISOString().split('T')[0];
             const storagePath = `${studentId}/${dateStr}/${assetId}.${ext}`;
 
+            const normalizedType = normalizeFileType(file, ext);
+
             console.log('[UPLOAD DEBUG]', {
                 bucket: 'task-uploads',
                 path: storagePath,
@@ -108,7 +125,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     student_id: studentId,
                     parent_id: session.user.id,
                     mission_date: dateStr,
-                    file_type: ext,
+                    file_type: normalizedType,
                     storage_bucket: 'task-uploads',
                     storage_path: storagePath,
                     processing_status: 'pending',
