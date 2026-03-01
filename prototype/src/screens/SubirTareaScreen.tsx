@@ -192,19 +192,14 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
         }, 0);
     };
 
-    const handleContinue = async () => {
-        if (!file) {
-            setErrorMsg('SELECCIONA UN ARCHIVO PRIMERO (PDF/IMAGEN).');
-            return;
-        }
+    const uploadAndRegisterAsset = async (fileToUpload: File) => {
+        console.log("STEP 1: start upload", fileToUpload.name);
+        setUploading(true);
+        setErrorMsg(null);
 
         try {
-            console.log("STEP 1: start upload");
-            setUploading(true);
-            setErrorMsg(null);
-
-            const studentId = localStorage.getItem('selected_student_id');
-            if (!studentId) {
+            const studentIdStr = localStorage.getItem('selected_student_id');
+            if (!studentIdStr) {
                 console.log("STEP 1.1: aborted due to missing studentId");
                 throw new Error("No hay un Agente (student_id) seleccionado activo.");
             }
@@ -217,25 +212,25 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             }
 
             const assetId = crypto.randomUUID();
-            const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+            const ext = fileToUpload.name.split('.').pop()?.toLowerCase() || 'bin';
             const dateStr = new Date().toISOString().split('T')[0];
-            const storagePath = `${studentId}/${dateStr}/${assetId}.${ext}`;
+            const storagePath = `${studentIdStr}/${dateStr}/${assetId}.${ext}`;
 
-            const normalizedType = normalizeFileType(file, ext);
+            const normalizedType = normalizeFileType(fileToUpload, ext);
 
             console.log('[UPLOAD DEBUG]', {
                 bucket: 'task-uploads',
                 path: storagePath,
-                selected_student_id: studentId,
+                selected_student_id: studentIdStr,
                 session_user: session.user?.id,
             });
 
-            console.log("STEP 2: before supabase.upload", { path: storagePath, file_name: file.name, size: file.size });
+            console.log("STEP 2: before supabase.upload", { path: storagePath, file_name: fileToUpload.name, size: fileToUpload.size });
 
             // 1) Subir archivo a task-uploads
             const uploadResult = await supabase.storage
                 .from('task-uploads')
-                .upload(storagePath, file, { upsert: false });
+                .upload(storagePath, fileToUpload, { upsert: false });
 
             console.log("STEP 3: after supabase.upload", uploadResult);
 
@@ -247,7 +242,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             const { error: dbError } = await supabase
                 .from('task_assets')
                 .insert({
-                    student_id: studentId,
+                    student_id: studentIdStr,
                     parent_id: session.user.id,
                     mission_date: dateStr,
                     file_type: normalizedType,
@@ -265,8 +260,22 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
         } catch (error: any) {
             console.error('Upload error:', error);
             setErrorMsg(error.message || 'Error desconocido');
+            throw error; // Re-throw to handle it in direct caller if needed
         } finally {
             setUploading(false);
+        }
+    };
+
+    const handleContinue = async () => {
+        if (!file) {
+            setErrorMsg('SELECCIONA UN ARCHIVO PRIMERO (PDF/IMAGEN).');
+            return;
+        }
+
+        try {
+            await uploadAndRegisterAsset(file);
+        } catch (error) {
+            // Error is already handled/displayed inside uploadAndRegisterAsset via setErrorMsg
         }
     };
 
@@ -290,20 +299,23 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 accept="image/*"
                 capture="environment"
                 style={{ display: "none" }}
-                onChange={(e) => {
+                onChange={async (e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
-                    setFile(f);
+
                     setSelectedFileName(f.name);
                     setErrorMsg(null);
                     setTaskAssetId(null);
                     // allow capturing another photo
                     e.currentTarget.value = "";
 
-                    // Auto-procesar imagen capturada nativamente
-                    setTimeout(() => {
-                        handleContinue();
-                    }, 500);
+                    try {
+                        await uploadAndRegisterAsset(f);
+                        setFile(f);
+                    } catch (err) {
+                        console.error("Error procesando captura:", err);
+                        // el error ya se pone en setErrorMsg dentro de uploadAndRegisterAsset
+                    }
                 }}
             />
 
