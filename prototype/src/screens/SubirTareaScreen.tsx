@@ -364,14 +364,17 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                             Debes seleccionar un Agente/Alumno antes de cargar datos.
                         </div>
                     )}
-                    {errorMsg && (
-                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12 }}>
-                            {errorMsg}
+                    {uploading ? (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid #F59E0B', borderRadius: 8, color: '#FCD34D', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ marginRight: 8 }}>⏳</span> SUBIENDO...
                         </div>
-                    )}
-                    {taskAssetId ? (
+                    ) : taskAssetId ? (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(52,211,153,0.1)', border: '1px solid #34D399', borderRadius: 8, color: '#34D399', fontSize: 12, fontWeight: 'bold' }}>
                             ✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}
+                        </div>
+                    ) : errorMsg ? (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12, fontWeight: 'bold' }}>
+                            ❌ {errorMsg.toUpperCase().startsWith("ERROR") ? errorMsg : `ERROR: ${errorMsg}`}
                         </div>
                     ) : (
                         file && (
@@ -535,13 +538,6 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 </button>
 
                 <div style={{ flex: 1 }} />
-
-                {/* Subtitle/Status indicator underneath buttons */}
-                {selectedFileName && !taskAssetId && !uploading && !errorMsg && (
-                    <div style={{ width: '100%', textAlign: 'center', marginBottom: '16px', color: '#60A5FA', fontSize: '13px', fontWeight: 'bold' }}>
-                        📸 Listo para procesar: {selectedFileName}
-                    </div>
-                )}
 
                 {/* Continue Button */}
                 <button
