@@ -34,7 +34,6 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
     const [taskAssetId, setTaskAssetId] = useState<string | null>(null);
     const [studentId, setStudentId] = useState<string | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -197,7 +196,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
         console.log("STEP 1: start upload", fileToUpload.name);
         setUploading(true);
         setErrorMsg(null);
-        setToastMessage("⏳ Subiendo...");
+        setTaskAssetId(null);
 
         try {
             const studentIdStr = localStorage.getItem('selected_student_id');
@@ -257,14 +256,12 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             if (dbError) throw new Error('Fallo al registrar asset en BD: ' + dbError.message);
 
             setTaskAssetId(assetId);
-            setToastMessage(`✅ ÉXITO: Archivo confirmado. ASSET ID: ${assetId}`);
             console.log('[SubirTareaScreen] task_asset_id generado y guardado:', assetId);
 
         } catch (error: any) {
             console.error('Upload error:', error);
             const msg = error.message || 'Error desconocido';
-            setErrorMsg(msg);
-            setToastMessage(`❌ Error: ${msg}`);
+            setErrorMsg(`Error al subir el archivo: ${msg}`);
             throw error; // Re-throw to handle it in direct caller if needed
         } finally {
             setUploading(false);
@@ -290,26 +287,6 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
             <style>{`
                 html, body { overflow-x: hidden !important; width: 100% !important; max-width: 100% !important; position: relative !important; }
             `}</style>
-
-            {/* Toast Feedback */}
-            {toastMessage && (
-                <div style={{
-                    position: "fixed",
-                    bottom: "90px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    background: "#0f172a",
-                    color: "#22c55e",
-                    padding: "12px 18px",
-                    borderRadius: "12px",
-                    boxShadow: "0 0 20px rgba(0,255,120,0.4)",
-                    zIndex: 9999,
-                    maxWidth: "90%",
-                    textAlign: "center"
-                }}>
-                    {toastMessage}
-                </div>
-            )}
 
             {/* Fondo Ambiental */}
             <div style={styles.ambientBackground}>
@@ -389,24 +366,25 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                             Debes seleccionar un Agente/Alumno antes de cargar datos.
                         </div>
                     )}
-                    {uploading ? (
+                    {uploading && (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid #F59E0B', borderRadius: 8, color: '#FCD34D', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <span style={{ marginRight: 8 }}>⏳</span> SUBIENDO...
                         </div>
-                    ) : taskAssetId ? (
+                    )}
+                    {taskAssetId && (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(52,211,153,0.1)', border: '1px solid #34D399', borderRadius: 8, color: '#34D399', fontSize: 12, fontWeight: 'bold' }}>
                             ✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}
                         </div>
-                    ) : errorMsg ? (
+                    )}
+                    {errorMsg && (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12, fontWeight: 'bold' }}>
-                            ❌ {errorMsg.toUpperCase().startsWith("ERROR") ? errorMsg : `ERROR: ${errorMsg}`}
+                            ❌ {errorMsg}
                         </div>
-                    ) : (
-                        file && (
-                            <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(96,165,250,0.1)', border: '1px solid #60A5FA', borderRadius: 8, color: '#60A5FA', fontSize: 12, fontWeight: 'bold' }}>
-                                ARCHIVO LISTO: {file.name}
-                            </div>
-                        )
+                    )}
+                    {!uploading && !taskAssetId && !errorMsg && file && (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(96,165,250,0.1)', border: '1px solid #60A5FA', borderRadius: 8, color: '#60A5FA', fontSize: 12, fontWeight: 'bold' }}>
+                            ARCHIVO LISTO: {file.name}
+                        </div>
                     )}
                 </div>
 
