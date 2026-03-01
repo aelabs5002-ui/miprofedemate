@@ -33,6 +33,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [taskAssetId, setTaskAssetId] = useState<string | null>(null);
     const [studentId, setStudentId] = useState<string | null>(null);
+    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
 
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -152,6 +153,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
 
                 const newFile = new File([blob], `captura_${ts}.jpg`, { type: "image/jpeg" });
                 setFile(newFile);
+                setSelectedFileName(newFile.name);
                 setErrorMsg(null);
                 setTaskAssetId(null);
                 closeCamera();
@@ -176,6 +178,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 const selectedFile = target.files[0];
                 console.log("FILE_SELECTED", selectedFile.name);
                 setFile(selectedFile);
+                setSelectedFileName(selectedFile.name);
                 setErrorMsg(null);
             }
         };
@@ -291,10 +294,16 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     const f = e.target.files?.[0];
                     if (!f) return;
                     setFile(f);
+                    setSelectedFileName(f.name);
                     setErrorMsg(null);
                     setTaskAssetId(null);
                     // allow capturing another photo
                     e.currentTarget.value = "";
+
+                    // Auto-procesar imagen capturada nativamente
+                    setTimeout(() => {
+                        handleContinue();
+                    }, 500);
                 }}
             />
 
@@ -514,6 +523,13 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 </button>
 
                 <div style={{ flex: 1 }} />
+
+                {/* Subtitle/Status indicator underneath buttons */}
+                {selectedFileName && !taskAssetId && !uploading && !errorMsg && (
+                    <div style={{ width: '100%', textAlign: 'center', marginBottom: '16px', color: '#60A5FA', fontSize: '13px', fontWeight: 'bold' }}>
+                        📸 Listo para procesar: {selectedFileName}
+                    </div>
+                )}
 
                 {/* Continue Button */}
                 <button
