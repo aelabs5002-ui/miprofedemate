@@ -38,6 +38,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
     const closeCamera = () => {
         if (streamRef.current) {
@@ -279,6 +280,24 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 <div style={styles.glowTopRight} />
             </div>
 
+            {/* Native Mobile Camera Input */}
+            <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    setFile(f);
+                    setErrorMsg(null);
+                    setTaskAssetId(null);
+                    // allow capturing another photo
+                    e.currentTarget.value = "";
+                }}
+            />
+
             {/* Header Tipo HUD */}
             <header style={styles.header}>
                 <button style={styles.backButton} onClick={alVolver}>
@@ -439,7 +458,14 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     {/* Camera Button */}
                     <button
                         style={{ ...styles.actionCard, borderColor: isCameraOpen ? '#34D399' : 'rgba(255,255,255,0.05)' }}
-                        onClick={isCameraOpen ? closeCamera : openCamera}
+                        onClick={() => {
+                            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                            if (isMobile) {
+                                cameraInputRef.current?.click();
+                            } else {
+                                isCameraOpen ? closeCamera() : openCamera();
+                            }
+                        }}
                         disabled={!studentId || uploading}
                     >
                         <div style={styles.scanLine} />
