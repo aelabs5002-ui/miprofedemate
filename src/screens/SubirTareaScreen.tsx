@@ -371,12 +371,12 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                             <span style={{ marginRight: 8 }}>⏳</span> SUBIENDO...
                         </div>
                     )}
-                    {taskAssetId && (
+                    {taskAssetId ? (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(52,211,153,0.1)', border: '1px solid #34D399', borderRadius: 8, color: '#34D399', fontSize: 12, fontWeight: 'bold' }}>
                             <div>✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}</div>
                             <div style={{ marginTop: 4, opacity: 0.9 }}>IA lista para analizar este material.</div>
                         </div>
-                    )}
+                    ) : null}
                     {errorMsg && (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12, fontWeight: 'bold' }}>
                             ❌ {errorMsg}
@@ -508,11 +508,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </button>
 
                     {/* PDF Button */}
-                    <button
-                        style={styles.actionCard}
-                        onClick={() => openFilePicker('application/pdf')}
-                        disabled={!studentId || uploading}
-                    >
+                    <button style={styles.actionCard} onClick={() => openFilePicker('application/pdf')} disabled={!studentId || uploading}>
                         <div style={{ ...styles.actionIconBox, color: '#60A5FA', borderColor: '#2563EB' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -527,11 +523,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </button>
 
                     {/* Gallery Button */}
-                    <button
-                        style={styles.actionCard}
-                        onClick={() => openFilePicker('image/*')}
-                        disabled={!studentId || uploading}
-                    >
+                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*')} disabled={!studentId || uploading}>
                         <div style={{ ...styles.actionIconBox, color: '#F59E0B', borderColor: '#D97706' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
