@@ -4,10 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy user changes (Build context is root now)
-COPY prototype/ ./prototype/
-
-# Switch to prototype directory for install & build
-WORKDIR /app/prototype
+COPY . .
 
 # EXPLICIT CLEAN: Remove any copied node_modules or dist to ensure fresh install/build
 RUN rm -rf node_modules dist
@@ -42,10 +39,10 @@ RUN sed -i "s|<head>|<head><!-- BUILD_TIMESTAMP: $(date -u) -->|g" dist/index.ht
 FROM nginx:alpine
 
 # Copy build output to Nginx html directory
-COPY --from=builder /app/prototype/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy custom Nginx config
-COPY --from=builder /app/prototype/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80
