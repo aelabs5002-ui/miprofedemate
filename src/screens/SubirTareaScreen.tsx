@@ -35,135 +35,12 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
     const [studentId, setStudentId] = useState<string | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
 
-    const [isCameraOpen, setIsCameraOpen] = useState(false);
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-    const cameraInputRef = useRef<HTMLInputElement | null>(null);
-
-    const closeCamera = () => {
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(t => t.stop());
-            streamRef.current = null;
-        }
-        if (videoRef.current) {
-            videoRef.current.srcObject = null;
-        }
-        setIsCameraOpen(false);
-    };
-
     useEffect(() => {
         const id = localStorage.getItem('selected_student_id');
         setStudentId(id);
-
-        return () => {
-            closeCamera();
-        };
     }, []);
 
-    const openCamera = async () => {
-        try {
-            async function getCameraStreamRobust() {
-                // Intento 1 (simple, más compatible)
-                try {
-                    return await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: { ideal: "environment" } },
-                        audio: false,
-                    });
-                } catch (e1) {
-                    // Intento 2 (deviceId exact)
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const videoDevices = devices.filter(d => d.kind === "videoinput");
-
-                    const backCamera =
-                        videoDevices.find(d =>
-                            (d.label || "").toLowerCase().includes("back") ||
-                            (d.label || "").toLowerCase().includes("rear") ||
-                            (d.label || "").toLowerCase().includes("environment")
-                        ) || videoDevices[videoDevices.length - 1];
-
-                    if (!backCamera) throw e1;
-
-                    return await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: backCamera.deviceId } },
-                        audio: false,
-                    });
-                }
-            }
-
-            const stream = await getCameraStreamRobust();
-            streamRef.current = stream;
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                await videoRef.current.play();
-
-                await new Promise((resolve, reject) => {
-                    const v = videoRef.current;
-                    if (!v) return reject();
-                    const t = setTimeout(() => reject(new Error("CAMERA_TIMEOUT")), 4000);
-                    v.onloadedmetadata = () => { clearTimeout(t); resolve(true); };
-                });
-            }
-            setIsCameraOpen(true);
-            setErrorMsg(null);
-            setFile(null);
-            setTaskAssetId(null);
-        } catch (error: any) {
-            console.error("Camera error:", error);
-            if (error.message === "CAMERA_TIMEOUT") {
-                setErrorMsg("CAMERA_TIMEOUT");
-            } else {
-                const name = error?.name || "UnknownError";
-                const msg = error?.message || "";
-
-                if (name === "NotAllowedError") {
-                    setErrorMsg(`Error cámara: ${name} ${msg} (Permiso denegado)`);
-                } else if (name === "NotFoundError") {
-                    setErrorMsg(`Error cámara: ${name} ${msg} (No hay cámara disponible)`);
-                } else if (name === "NotReadableError") {
-                    setErrorMsg(`Error cámara: ${name} ${msg} (Cámara ocupada por otra app)`);
-                } else {
-                    setErrorMsg(`Error cámara: ${name} ${msg}`);
-                }
-            }
-        }
-    };
-
-    const capturePhoto = () => {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        if (!video || !canvas) return;
-
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-            setErrorMsg("La cámara aún no está lista. Espera 1 segundo e intenta de nuevo.");
-            return;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        canvas.toBlob((blob) => {
-            if (blob) {
-                const now = new Date();
-                const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-
-                const newFile = new File([blob], `captura_${ts}.jpg`, { type: "image/jpeg" });
-                setFile(newFile);
-                setSelectedFileName(newFile.name);
-                setErrorMsg(null);
-                setTaskAssetId(null);
-                closeCamera();
-            } else {
-                setErrorMsg("Error al generar la imagen.");
-            }
-        }, "image/jpeg", 0.9);
-    };
-
-    const openFilePicker = (acceptType: string, capture?: string) => {
+    const openFilePicker = (acceptType: string, capture?: string, autoUpload: boolean = true) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = acceptType;
@@ -172,7 +49,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
         }
         input.style.display = 'none';
 
-        input.onchange = (e: Event) => {
+        input.onchange = async (e: Event) => {
             const target = e.target as HTMLInputElement;
             if (target.files && target.files.length > 0) {
                 const selectedFile = target.files[0];
@@ -180,6 +57,11 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 setFile(selectedFile);
                 setSelectedFileName(selectedFile.name);
                 setErrorMsg(null);
+
+                if (autoUpload) {
+                    if (uploading) return;
+                    await uploadAndRegisterAsset(selectedFile);
+                }
             }
         };
 
@@ -294,32 +176,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 <div style={styles.glowTopRight} />
             </div>
 
-            {/* Native Mobile Camera Input */}
-            <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                style={{ display: "none" }}
-                onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
 
-                    setSelectedFileName(f.name);
-                    setErrorMsg(null);
-                    setTaskAssetId(null);
-                    // allow capturing another photo
-                    e.currentTarget.value = "";
-
-                    try {
-                        await uploadAndRegisterAsset(f);
-                        setFile(f);
-                    } catch (err) {
-                        console.error("Error procesando captura:", err);
-                        // el error ya se pone en setErrorMsg dentro de uploadAndRegisterAsset
-                    }
-                }}
-            />
 
             {/* Header Tipo HUD */}
             <header style={styles.header}>
@@ -389,49 +246,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     )}
                 </div>
 
-                {/* Camera UI */}
-                {isCameraOpen && (
-                    <div style={{ width: '100%', marginBottom: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(52,211,153,0.3)' }}>
-                        {errorMsg === "CAMERA_TIMEOUT" ? (
-                            <div style={{ textAlign: 'center', padding: '20px' }}>
-                                <div style={{ color: '#FCA5A5', marginBottom: '16px' }}>Error: No se pudo iniciar el video (Timeout).</div>
-                                <button
-                                    onClick={() => { closeCamera(); openCamera(); }}
-                                    style={{ padding: '12px 24px', backgroundColor: '#34D399', color: '#064E3B', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>
-                                    REINTENTAR
-                                </button>
-                                <button
-                                    onClick={closeCamera}
-                                    style={{ padding: '12px 24px', backgroundColor: 'transparent', color: '#FCA5A5', border: '1px solid #FCA5A5', borderRadius: '8px', fontWeight: 'bold', marginLeft: '8px' }}>
-                                    CANCELAR
-                                </button>
-                            </div>
-                        ) : (
-                            <>
-                                <video
-                                    ref={videoRef}
-                                    autoPlay
-                                    playsInline
-                                    muted
-                                    style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', borderRadius: '8px', border: '2px solid #34D399', backgroundColor: '#000' }}
-                                />
-                                <canvas ref={canvasRef} style={{ display: 'none' }} />
-                                <div style={{ display: 'flex', gap: '12px', marginTop: '16px', width: '100%', maxWidth: '400px' }}>
-                                    <button
-                                        onClick={capturePhoto}
-                                        style={{ flex: 1, padding: '12px', backgroundColor: '#34D399', color: '#064E3B', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                                        CAPTURAR FOTO
-                                    </button>
-                                    <button
-                                        onClick={closeCamera}
-                                        style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', color: '#FCA5A5', border: '1px solid #FCA5A5', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                                        CERRAR
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
+
 
                 {/* Consejos (Intel Card) */}
                 <div style={styles.tipsCard}>
@@ -485,15 +300,8 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 <div style={styles.actionCardsContainer}>
                     {/* Camera Button */}
                     <button
-                        style={{ ...styles.actionCard, borderColor: isCameraOpen ? '#34D399' : 'rgba(255,255,255,0.05)' }}
-                        onClick={() => {
-                            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                            if (isMobile) {
-                                cameraInputRef.current?.click();
-                            } else {
-                                isCameraOpen ? closeCamera() : openCamera();
-                            }
-                        }}
+                        style={styles.actionCard}
+                        onClick={() => openFilePicker('image/*', 'environment', true)}
                         disabled={!studentId || uploading}
                     >
                         <div style={styles.scanLine} />
@@ -508,7 +316,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </button>
 
                     {/* PDF Button */}
-                    <button style={styles.actionCard} onClick={() => openFilePicker('application/pdf')} disabled={!studentId || uploading}>
+                    <button style={styles.actionCard} onClick={() => openFilePicker('application/pdf', undefined, true)} disabled={!studentId || uploading}>
                         <div style={{ ...styles.actionIconBox, color: '#60A5FA', borderColor: '#2563EB' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -523,7 +331,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </button>
 
                     {/* Gallery Button */}
-                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*')} disabled={!studentId || uploading}>
+                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*', undefined, true)} disabled={!studentId || uploading}>
                         <div style={{ ...styles.actionIconBox, color: '#F59E0B', borderColor: '#D97706' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
