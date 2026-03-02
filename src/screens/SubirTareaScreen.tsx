@@ -1,14 +1,30 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { BUILD_ID } from '../build';
 
 interface SubirTareaScreenProps {
     alVolver: () => void;
     alIniciarCreacion: (missionId: string) => void;
 }
 
+function normalizeFileType(file: File, extRaw: string) {
+    const ext = extRaw.toLowerCase().replace(".", "");
+    const mime = file?.type?.toLowerCase() || "";
+
+    if (mime.includes("pdf") || ext === "pdf") {
+        return "pdf";
+    }
+
+    if (mime.startsWith("image/") || ["png", "jpg", "jpeg", "webp"].includes(ext)) {
+        return "image";
+    }
+
+    throw new Error("Tipo de archivo no permitido. Solo imágenes o PDF.");
+}
+
 /**
  * Pantalla de Subida de Material Rediseñada (Skin: Escuadrón / Data Upload).
- * Mantiene lógica de navegación y simulación de acciones.
+ * Implementación REAL de Supabase (Upload + DB Insert).
  */
 const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciarCreacion }) => {
 
@@ -16,6 +32,136 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
     const [uploading, setUploading] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [taskAssetId, setTaskAssetId] = useState<string | null>(null);
+    const [studentId, setStudentId] = useState<string | null>(null);
+    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+    const closeCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+        setIsCameraOpen(false);
+    };
+
+    useEffect(() => {
+        const id = localStorage.getItem('selected_student_id');
+        setStudentId(id);
+
+        return () => {
+            closeCamera();
+        };
+    }, []);
+
+    const openCamera = async () => {
+        try {
+            async function getCameraStreamRobust() {
+                // Intento 1 (simple, más compatible)
+                try {
+                    return await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { ideal: "environment" } },
+                        audio: false,
+                    });
+                } catch (e1) {
+                    // Intento 2 (deviceId exact)
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(d => d.kind === "videoinput");
+
+                    const backCamera =
+                        videoDevices.find(d =>
+                            (d.label || "").toLowerCase().includes("back") ||
+                            (d.label || "").toLowerCase().includes("rear") ||
+                            (d.label || "").toLowerCase().includes("environment")
+                        ) || videoDevices[videoDevices.length - 1];
+
+                    if (!backCamera) throw e1;
+
+                    return await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: backCamera.deviceId } },
+                        audio: false,
+                    });
+                }
+            }
+
+            const stream = await getCameraStreamRobust();
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                await videoRef.current.play();
+
+                await new Promise((resolve, reject) => {
+                    const v = videoRef.current;
+                    if (!v) return reject();
+                    const t = setTimeout(() => reject(new Error("CAMERA_TIMEOUT")), 4000);
+                    v.onloadedmetadata = () => { clearTimeout(t); resolve(true); };
+                });
+            }
+            setIsCameraOpen(true);
+            setErrorMsg(null);
+            setFile(null);
+            setTaskAssetId(null);
+        } catch (error: any) {
+            console.error("Camera error:", error);
+            if (error.message === "CAMERA_TIMEOUT") {
+                setErrorMsg("CAMERA_TIMEOUT");
+            } else {
+                const name = error?.name || "UnknownError";
+                const msg = error?.message || "";
+
+                if (name === "NotAllowedError") {
+                    setErrorMsg(`Error cámara: ${name} ${msg} (Permiso denegado)`);
+                } else if (name === "NotFoundError") {
+                    setErrorMsg(`Error cámara: ${name} ${msg} (No hay cámara disponible)`);
+                } else if (name === "NotReadableError") {
+                    setErrorMsg(`Error cámara: ${name} ${msg} (Cámara ocupada por otra app)`);
+                } else {
+                    setErrorMsg(`Error cámara: ${name} ${msg}`);
+                }
+            }
+        }
+    };
+
+    const capturePhoto = () => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (!video || !canvas) return;
+
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            setErrorMsg("La cámara aún no está lista. Espera 1 segundo e intenta de nuevo.");
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+            if (blob) {
+                const now = new Date();
+                const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+
+                const newFile = new File([blob], `captura_${ts}.jpg`, { type: "image/jpeg" });
+                setFile(newFile);
+                setSelectedFileName(newFile.name);
+                setErrorMsg(null);
+                setTaskAssetId(null);
+                closeCamera();
+            } else {
+                setErrorMsg("Error al generar la imagen.");
+            }
+        }, "image/jpeg", 0.9);
+    };
 
     const openFilePicker = (acceptType: string, capture?: string) => {
         const input = document.createElement('input');
@@ -32,6 +178,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 const selectedFile = target.files[0];
                 console.log("FILE_SELECTED", selectedFile.name);
                 setFile(selectedFile);
+                setSelectedFileName(selectedFile.name);
                 setErrorMsg(null);
             }
         };
@@ -45,44 +192,65 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
         }, 0);
     };
 
-    const handleContinue = async () => {
-        if (!file) {
-            setErrorMsg('SELECCIONA UN ARCHIVO PRIMERO (PDF/IMAGEN).');
-            return;
-        }
+    const uploadAndRegisterAsset = async (fileToUpload: File) => {
+        console.log("STEP 1: start upload", fileToUpload.name);
+        setUploading(true);
+        setErrorMsg(null);
+        setTaskAssetId(null);
 
         try {
-            setUploading(true);
-            setErrorMsg(null);
+            const studentIdStr = localStorage.getItem('selected_student_id');
+            if (!studentIdStr) {
+                console.log("STEP 1.1: aborted due to missing studentId");
+                throw new Error("No hay un Agente (student_id) seleccionado activo.");
+            }
 
-            const studentId = localStorage.getItem('selected_student_id');
-            if (!studentId) throw new Error("No hay un Agente (student_id) seleccionado activo.");
+            // Validar sesión antes de subir (fix para RLS)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                console.log("STEP 1.2: aborted due to missing session");
+                throw new Error('No authenticated session. Inicie sesión nuevamente.');
+            }
 
             const assetId = crypto.randomUUID();
-            const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+            const ext = fileToUpload.name.split('.').pop()?.toLowerCase() || 'bin';
             const dateStr = new Date().toISOString().split('T')[0];
-            const storagePath = `${studentId}/${dateStr}/${assetId}.${ext}`;
+            const storagePath = `${studentIdStr}/${dateStr}/${assetId}.${ext}`;
+
+            const normalizedType = normalizeFileType(fileToUpload, ext);
+
+            console.log('[UPLOAD DEBUG]', {
+                bucket: 'task-uploads',
+                path: storagePath,
+                selected_student_id: studentIdStr,
+                session_user: session.user?.id,
+            });
+
+            console.log("STEP 2: before supabase.upload", { path: storagePath, file_name: fileToUpload.name, size: fileToUpload.size });
 
             // 1) Subir archivo a task-uploads
-            const { error: uploadError } = await supabase.storage
+            const uploadResult = await supabase.storage
                 .from('task-uploads')
-                .upload(storagePath, file, { upsert: true });
+                .upload(storagePath, fileToUpload, { upsert: false });
 
-            if (uploadError) throw new Error('Falla de red en carga Storage: ' + uploadError.message);
+            console.log("STEP 3: after supabase.upload", uploadResult);
 
-            // 2) Insertar registro en public.task_assets con los campos exactos pedidos
+            if (uploadResult.error) {
+                throw new Error('Falla de red en carga Storage: ' + uploadResult.error.message);
+            }
+
+            // 2) Insertar registro en public.task_assets
             const { error: dbError } = await supabase
                 .from('task_assets')
                 .insert({
-                    id: assetId,
-                    student_id: studentId,
-                    bucket: 'task-uploads',
-                    path: storagePath,
-                    status: 'pending',
-                    mime_type: file.type || 'application/octet-stream',
-                    size_bytes: file.size,
-                    original_filename: file.name,
-                    source: 'web'
+                    student_id: studentIdStr,
+                    parent_id: session.user.id,
+                    mission_date: dateStr,
+                    file_type: normalizedType,
+                    storage_bucket: 'task-uploads',
+                    storage_path: storagePath,
+                    processing_status: 'pending',
+                    error_message: null
                 });
 
             if (dbError) throw new Error('Fallo al registrar asset en BD: ' + dbError.message);
@@ -92,9 +260,24 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
 
         } catch (error: any) {
             console.error('Upload error:', error);
-            setErrorMsg(error.message || 'Error desconocido');
+            const msg = error.message || 'Error desconocido';
+            setErrorMsg(`Error al subir el archivo: ${msg}`);
+            throw error; // Re-throw to handle it in direct caller if needed
         } finally {
             setUploading(false);
+        }
+    };
+
+    const handleContinue = async () => {
+        if (!file) {
+            setErrorMsg('SELECCIONA UN ARCHIVO PRIMERO (PDF/IMAGEN).');
+            return;
+        }
+
+        try {
+            await uploadAndRegisterAsset(file);
+        } catch (error) {
+            // Error is already handled/displayed inside uploadAndRegisterAsset via setErrorMsg
         }
     };
 
@@ -110,6 +293,33 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                 <div style={styles.gridPattern} />
                 <div style={styles.glowTopRight} />
             </div>
+
+            {/* Native Mobile Camera Input */}
+            <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+
+                    setSelectedFileName(f.name);
+                    setErrorMsg(null);
+                    setTaskAssetId(null);
+                    // allow capturing another photo
+                    e.currentTarget.value = "";
+
+                    try {
+                        await uploadAndRegisterAsset(f);
+                        setFile(f);
+                    } catch (err) {
+                        console.error("Error procesando captura:", err);
+                        // el error ya se pone en setErrorMsg dentro de uploadAndRegisterAsset
+                    }
+                }}
+            />
 
             {/* Header Tipo HUD */}
             <header style={styles.header}>
@@ -151,23 +361,77 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     <p style={styles.subTitle}>
                         Escanea o sube la información del objetivo para análisis táctico de la IA.
                     </p>
-                    {errorMsg && (
-                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12 }}>
-                            {errorMsg}
+                    {!studentId && (
+                        <div style={{ marginTop: 12, padding: 10, backgroundColor: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.8)', borderRadius: 10, color: '#FCA5A5', fontSize: 12 }}>
+                            Debes seleccionar un Agente/Alumno antes de cargar datos.
                         </div>
                     )}
-                    {taskAssetId ? (
-                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(52,211,153,0.1)', border: '1px solid #34D399', borderRadius: 8, color: '#34D399', fontSize: 12, fontWeight: 'bold' }}>
-                            ✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}
+                    {uploading && (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid #F59E0B', borderRadius: 8, color: '#FCD34D', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ marginRight: 8 }}>⏳</span> SUBIENDO...
                         </div>
-                    ) : (
-                        file && (
-                            <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(96,165,250,0.1)', border: '1px solid #60A5FA', borderRadius: 8, color: '#60A5FA', fontSize: 12, fontWeight: 'bold' }}>
-                                ARCHIVO LISTO: {file.name}
-                            </div>
-                        )
+                    )}
+                    {taskAssetId && (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(52,211,153,0.1)', border: '1px solid #34D399', borderRadius: 8, color: '#34D399', fontSize: 12, fontWeight: 'bold' }}>
+                            <div>✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}</div>
+                            <div style={{ marginTop: 4, opacity: 0.9 }}>IA lista para analizar este material.</div>
+                        </div>
+                    )}
+                    {errorMsg && (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #EF4444', borderRadius: 8, color: '#FCA5A5', fontSize: 12, fontWeight: 'bold' }}>
+                            ❌ {errorMsg}
+                        </div>
+                    )}
+                    {!uploading && !taskAssetId && !errorMsg && file && (
+                        <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(96,165,250,0.1)', border: '1px solid #60A5FA', borderRadius: 8, color: '#60A5FA', fontSize: 12, fontWeight: 'bold' }}>
+                            ARCHIVO LISTO: {file.name}
+                        </div>
                     )}
                 </div>
+
+                {/* Camera UI */}
+                {isCameraOpen && (
+                    <div style={{ width: '100%', marginBottom: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(52,211,153,0.3)' }}>
+                        {errorMsg === "CAMERA_TIMEOUT" ? (
+                            <div style={{ textAlign: 'center', padding: '20px' }}>
+                                <div style={{ color: '#FCA5A5', marginBottom: '16px' }}>Error: No se pudo iniciar el video (Timeout).</div>
+                                <button
+                                    onClick={() => { closeCamera(); openCamera(); }}
+                                    style={{ padding: '12px 24px', backgroundColor: '#34D399', color: '#064E3B', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>
+                                    REINTENTAR
+                                </button>
+                                <button
+                                    onClick={closeCamera}
+                                    style={{ padding: '12px 24px', backgroundColor: 'transparent', color: '#FCA5A5', border: '1px solid #FCA5A5', borderRadius: '8px', fontWeight: 'bold', marginLeft: '8px' }}>
+                                    CANCELAR
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    style={{ width: '100%', maxHeight: '60vh', objectFit: 'cover', borderRadius: '8px', border: '2px solid #34D399', backgroundColor: '#000' }}
+                                />
+                                <canvas ref={canvasRef} style={{ display: 'none' }} />
+                                <div style={{ display: 'flex', gap: '12px', marginTop: '16px', width: '100%', maxWidth: '400px' }}>
+                                    <button
+                                        onClick={capturePhoto}
+                                        style={{ flex: 1, padding: '12px', backgroundColor: '#34D399', color: '#064E3B', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                        CAPTURAR FOTO
+                                    </button>
+                                    <button
+                                        onClick={closeCamera}
+                                        style={{ flex: 1, padding: '12px', backgroundColor: 'transparent', color: '#FCA5A5', border: '1px solid #FCA5A5', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                        CERRAR
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 {/* Consejos (Intel Card) */}
                 <div style={styles.tipsCard}>
@@ -212,15 +476,26 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </div>
                 </div>
 
-                {/* Marcador visible UI Debug */}
+                {/* Marcador visible UI Debug PROTO*/}
                 <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: '#60A5FA', fontWeight: 'bold' }}>
-                    BUILD_UPLOAD_FIX ✅ 2026-02-25
+                    BUILD: {BUILD_ID}
                 </div>
 
                 {/* Botones de Acción */}
                 <div style={styles.actionCardsContainer}>
                     {/* Camera Button */}
-                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*', 'environment')}>
+                    <button
+                        style={{ ...styles.actionCard, borderColor: isCameraOpen ? '#34D399' : 'rgba(255,255,255,0.05)' }}
+                        onClick={() => {
+                            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                            if (isMobile) {
+                                cameraInputRef.current?.click();
+                            } else {
+                                isCameraOpen ? closeCamera() : openCamera();
+                            }
+                        }}
+                        disabled={!studentId || uploading}
+                    >
                         <div style={styles.scanLine} />
                         <div style={{ ...styles.actionIconBox, color: '#34D399', borderColor: '#059669' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -233,7 +508,11 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     </button>
 
                     {/* PDF Button */}
-                    <button style={styles.actionCard} onClick={() => openFilePicker('image/*,application/pdf')}>
+                    <button
+                        style={styles.actionCard}
+                        onClick={() => openFilePicker('application/pdf')}
+                        disabled={!studentId || uploading}
+                    >
                         <div style={{ ...styles.actionIconBox, color: '#60A5FA', borderColor: '#2563EB' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -243,28 +522,35 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                                 <polyline points="10 9 9 9 8 9" />
                             </svg>
                         </div>
-                        <span style={styles.actionCardTitle}>SUBIR ARCHIVO</span>
-                        <span style={styles.actionCardSubtitle}>PDF / Imagen</span>
+                        <span style={styles.actionCardTitle}>SUBIR DOCUMENTO</span>
+                        <span style={styles.actionCardSubtitle}>PDF</span>
+                    </button>
+
+                    {/* Gallery Button */}
+                    <button
+                        style={styles.actionCard}
+                        onClick={() => openFilePicker('image/*')}
+                        disabled={!studentId || uploading}
+                    >
+                        <div style={{ ...styles.actionIconBox, color: '#F59E0B', borderColor: '#D97706' }}>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <polyline points="21 15 16 10 5 21" />
+                            </svg>
+                        </div>
+                        <span style={styles.actionCardTitle}>SUBIR IMAGEN</span>
+                        <span style={styles.actionCardSubtitle}>Galería</span>
                     </button>
                 </div>
-
-                {/* Galería Link */}
-                <button style={styles.galleryLink} onClick={() => openFilePicker('image/*')}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 8 }}>
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <polyline points="21 15 16 10 5 21" />
-                    </svg>
-                    ACCEDER A LA GALERÍA
-                </button>
 
                 <div style={{ flex: 1 }} />
 
                 {/* Continue Button */}
                 <button
-                    style={{ ...styles.continueButton, opacity: (!file && !taskAssetId) || uploading ? 0.5 : 1 }}
+                    style={{ ...styles.continueButton, opacity: (!studentId || (!file && !taskAssetId) || uploading) ? 0.5 : 1 }}
                     onClick={taskAssetId ? () => alIniciarCreacion(taskAssetId) : handleContinue}
-                    disabled={uploading || (!file && !taskAssetId)}
+                    disabled={!studentId || uploading || (!file && !taskAssetId)}
                 >
                     <span>
                         {uploading ? 'SUBIENDO...' :
