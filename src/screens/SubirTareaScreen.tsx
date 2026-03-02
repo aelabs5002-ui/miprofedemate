@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../servicios/edgeApi';
 import { BUILD_ID } from '../build';
 
 interface SubirTareaScreenProps {
