@@ -218,6 +218,9 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     <p style={styles.subTitle}>
                         Escanea o sube la información del objetivo para análisis táctico de la IA.
                     </p>
+                    <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: '#60A5FA', fontWeight: 'bold' }}>
+                        DEPLOY_MARKER: edac9f4
+                    </div>
                     {!studentId && (
                         <div style={{ marginTop: 12, padding: 10, backgroundColor: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.8)', borderRadius: 10, color: '#FCA5A5', fontSize: 12 }}>
                             Debes seleccionar un Agente/Alumno antes de cargar datos.
