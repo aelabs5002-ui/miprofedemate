@@ -373,7 +373,8 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     )}
                     {taskAssetId && (
                         <div style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(52,211,153,0.1)', border: '1px solid #34D399', borderRadius: 8, color: '#34D399', fontSize: 12, fontWeight: 'bold' }}>
-                            ✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}
+                            <div>✅ ÉXITO: Archivo confirmado. ASSET ID: {taskAssetId}</div>
+                            <div style={{ marginTop: 4, opacity: 0.9 }}>IA lista para analizar este material.</div>
                         </div>
                     )}
                     {errorMsg && (
@@ -509,7 +510,7 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                     {/* PDF Button */}
                     <button
                         style={styles.actionCard}
-                        onClick={() => openFilePicker('image/*,application/pdf')}
+                        onClick={() => openFilePicker('application/pdf')}
                         disabled={!studentId || uploading}
                     >
                         <div style={{ ...styles.actionIconBox, color: '#60A5FA', borderColor: '#2563EB' }}>
@@ -521,24 +522,27 @@ const SubirTareaScreen: React.FC<SubirTareaScreenProps> = ({ alVolver, alIniciar
                                 <polyline points="10 9 9 9 8 9" />
                             </svg>
                         </div>
-                        <span style={styles.actionCardTitle}>SUBIR ARCHIVO</span>
-                        <span style={styles.actionCardSubtitle}>PDF / Imagen</span>
+                        <span style={styles.actionCardTitle}>SUBIR DOCUMENTO</span>
+                        <span style={styles.actionCardSubtitle}>PDF</span>
+                    </button>
+
+                    {/* Gallery Button */}
+                    <button
+                        style={styles.actionCard}
+                        onClick={() => openFilePicker('image/*')}
+                        disabled={!studentId || uploading}
+                    >
+                        <div style={{ ...styles.actionIconBox, color: '#F59E0B', borderColor: '#D97706' }}>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <polyline points="21 15 16 10 5 21" />
+                            </svg>
+                        </div>
+                        <span style={styles.actionCardTitle}>SUBIR IMAGEN</span>
+                        <span style={styles.actionCardSubtitle}>Galería</span>
                     </button>
                 </div>
-
-                {/* Galería Link */}
-                <button
-                    style={styles.galleryLink}
-                    onClick={() => openFilePicker('image/*')}
-                    disabled={!studentId || uploading}
-                >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 8 }}>
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <polyline points="21 15 16 10 5 21" />
-                    </svg>
-                    ACCEDER A LA GALERÍA
-                </button>
 
                 <div style={{ flex: 1 }} />
 
