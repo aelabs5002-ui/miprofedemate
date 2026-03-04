@@ -1,2 +1,2 @@
-export const BUILD_ID = "local-dev-fallback";
-export const BUILD_SOURCE = "local";
+export const BUILD_ID = "";
+export const BUILD_SOURCE = "";

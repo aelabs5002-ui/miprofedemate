@@ -20,6 +20,7 @@ ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 
 RUN rm -rf dist
+RUN node -e "const fs=require('fs'); const id=new Date().toISOString(); fs.writeFileSync('src/build.ts', \`\nexport const BUILD_ID='${id}';\nexport const BUILD_SOURCE='docker';\n\`);"
 RUN npm run build
 RUN node -e "const fs=require('fs'); const id=new Date().toISOString(); fs.writeFileSync('dist/build.txt', 'BUILD_ID=' + id + '\nBUILD_SOURCE=docker\n'); let html = fs.readFileSync('dist/index.html', 'utf8'); html = html.replace('</head>', '<!-- BUILD_ID: ' + id + ' --></head>'); fs.writeFileSync('dist/index.html', html);"
 RUN ls -la dist
