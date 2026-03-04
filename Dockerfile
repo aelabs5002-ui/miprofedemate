@@ -6,10 +6,10 @@ COPY package-lock.json* ./
 COPY pnpm-lock.yaml* ./
 COPY yarn.lock* ./
 
-RUN if [ -f pnpm-lock.yaml ]; then npm i -g pnpm && pnpm i --frozen-lockfile; \
-elif [ -f package-lock.json ]; then npm ci; \
-elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
-else npm install; fi
+RUN if [ -f pnpm-lock.yaml ]; then npm i -g pnpm && pnpm install; \
+    elif [ -f package-lock.json ]; then npm install; \
+    elif [ -f yarn.lock ]; then yarn install; \
+    else npm install; fi
 
 COPY . .
 
