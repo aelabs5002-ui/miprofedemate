@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -14,7 +14,10 @@ import { MissionBuildStatus, MissionRequest, MissionPlan } from '../types/missio
 import { MissionService } from '../servicios/MissionService';
 import PadreBibliotecaTutorScreen from '../screens/PadreBibliotecaTutorScreen';
 import PanelAlumnoScreen from '../screens/PanelAlumnoScreen';
-import TermsConditionScreen from '../screens/TermsConditionScreen';
+// TermsConditionScreen import removed
+import StudentSelectionScreen from '../screens/StudentSelectionScreen';
+import OtpConfirmScreen from '../screens/OtpConfirmScreen';
+import { supabase } from '../servicios/edgeApi';
 
 /**
  * Navegador principal de la aplicación (Bloque C1).
@@ -23,7 +26,8 @@ import TermsConditionScreen from '../screens/TermsConditionScreen';
 const AppNavigator: React.FC = () => {
   const { sesion } = useApp();
   const [rutaActual, setRutaActual] = useState('Misión');
-  const [vistaAuth, setVistaAuth] = useState<'Login' | 'Registro' | 'Terminos'>('Login');
+  const [vistaAuth, setVistaAuth] = useState<'Login' | 'Registro' | 'OtpConfirm'>('Login');
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   // Navigation Stacks/Modals
   const [mostrarSubirTarea, setMostrarSubirTarea] = useState(false);
@@ -37,13 +41,114 @@ const AppNavigator: React.FC = () => {
 
   const [sessionPlan, setSessionPlan] = useState<MissionPlan | null>(null);
 
+  // --- RENDERING AUTH FLOW ---
+  const [checkingStudents, setCheckingStudents] = useState(false);
+  const [hasStudents, setHasStudents] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkStudents = async () => {
+      if (!sesion.estaAutenticado) return;
+
+      const { data: authData } = await supabase.auth.getUser();
+      const parentId = authData?.user?.id;
+      if (!parentId) return;
+
+      setCheckingStudents(true);
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id')
+          .eq('parent_id', parentId)
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        setHasStudents(!!data);
+      } catch (err) {
+        setHasStudents(false);
+      } finally {
+        setCheckingStudents(false);
+      }
+    };
+    checkStudents();
+  }, [sesion.estaAutenticado]);
+
+  const [autoSetDone, setAutoSetDone] = useState(false);
+  const autoSetRunning = useRef(false);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (!sesion.estaAutenticado || !hasStudents || autoSetDone || autoSetRunning.current) return;
+
+        const existing = localStorage.getItem('selected_student_id');
+        if (existing) { setAutoSetDone(true); return; }
+
+        autoSetRunning.current = true;
+
+        const { data: authData } = await supabase.auth.getUser();
+        const parentId = authData?.user?.id;
+        if (!parentId) return;
+
+        const { data: students, error } = await supabase
+          .from('students')
+          .select('id')
+          .eq('parent_id', parentId)
+          .limit(2);
+
+        if (!error && students && students.length === 1) {
+          localStorage.setItem('selected_student_id', students[0].id);
+        }
+        setAutoSetDone(true);
+      } finally {
+        autoSetRunning.current = false;
+      }
+    };
+    run();
+  }, [sesion.estaAutenticado, hasStudents, autoSetDone]);
+
   // Flujo de Autenticación
+  if (sesion.estaAutenticado && checkingStudents) {
+    return <div style={{ color: 'white', padding: 20 }}>Cargando sesión...</div>;
+  }
+
+  if (sesion.estaAutenticado && hasStudents === null) {
+    return <div style={{ color: 'white', padding: 20 }}>Cargando perfil...</div>;
+  }
+
+  if (sesion.estaAutenticado && hasStudents && !localStorage.getItem('selected_student_id') && !autoSetDone) {
+    return <div style={{ color: 'white', padding: 20 }}>Cargando datos...</div>;
+  }
+
   if (!sesion.estaAutenticado) {
-    return vistaAuth === 'Login'
-      ? <LoginScreen alIrARegistro={() => setVistaAuth('Registro')} />
-      : vistaAuth === 'Registro'
-        ? <RegisterScreen alIrALogin={() => setVistaAuth('Login')} alIrATerminos={() => setVistaAuth('Terminos')} />
-        : <TermsConditionScreen alVolver={() => setVistaAuth('Registro')} />;
+    if (vistaAuth === 'Registro') {
+      return (
+        <RegisterScreen
+          alIrALogin={() => setVistaAuth('Login')}
+          alIrATerminos={() => console.log('Terms omitted for now')}
+          alIrAOtp={(email) => { setPendingEmail(email); setVistaAuth('OtpConfirm'); }}
+        />
+      );
+    }
+
+    if (vistaAuth === 'OtpConfirm') {
+      return <OtpConfirmScreen email={pendingEmail || ''} alVolverALogin={() => setVistaAuth('Login')} />;
+    }
+
+    // Default Safe: Si vistaAuth es desconocido, forzar a Login
+    if (vistaAuth !== 'Login') {
+      setTimeout(() => setVistaAuth('Login'), 0);
+    }
+    return <LoginScreen alIrARegistro={() => setVistaAuth('Registro')} />;
+  }
+
+  const selectedId = localStorage.getItem("selected_student_id");
+  if (hasStudents === false && !selectedId) {
+    return <StudentSelectionScreen />;
+  }
+
+  if (hasStudents && !selectedId && autoSetDone) {
+    return <StudentSelectionScreen />;
   }
 
   // --- Navigación ---

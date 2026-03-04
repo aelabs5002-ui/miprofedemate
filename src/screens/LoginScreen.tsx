@@ -11,87 +11,154 @@ interface Props {
  */
 const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
   const { iniciarSesion } = useApp();
+  // NOTA: 'iniciarSesion' del context ahora se activará con datos reales
+  // Aquí solo gestionamos la Auth del PADRE.
 
-  // Estados de campos
-  const [usuario, setUsuario] = useState('');
-  const [clave, setClave] = useState('');
-  const [mostrarClave, setMostrarClave] = useState(false);
+  // Estados
+  // DEBUG FLAGS
+  const DEBUG_AUTH = import.meta.env.DEV || import.meta.env.VITE_DEBUG_AUTH === '1';
+  const DEBUG_AI = import.meta.env.DEV || import.meta.env.VITE_DEBUG_AI === '1';
+
+  // Estados
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errorLogin, setErrorLogin] = useState<string | null>(null);
 
-  // Estado de conectividad (No bloqueante)
+  // Estado de conectividad
   const [isOnline, setIsOnline] = useState(false);
 
-  // 1. Cargar datos guardados y verificar estado al montar
-  useEffect(() => {
-    // Healthcheck logic
-    const checkHealth = async () => {
-      try {
-        const r1 = await fetch('/api/health'); // Intento 1
-        if (r1.ok) { setIsOnline(true); return; }
-        const r2 = await fetch('/health'); // Intento 2
-        if (r2.ok) { setIsOnline(true); return; }
-        setIsOnline(false);
-      } catch (e) {
-        setIsOnline(false); // Fallo de red = Offline
-      }
-    };
-    checkHealth();
+  // AI Health Check State
+  const [aiHealth, setAiHealth] = useState<{ ok: boolean; status?: number; latencyMs?: number; msg?: string } | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
 
-    // Cargar credenciales
-    const savedUser = localStorage.getItem('tpdm_usuario');
-    const savedPass = localStorage.getItem('tpdm_clave');
-    if (savedUser) setUsuario(savedUser);
-    if (savedPass) setClave(savedPass);
+  useEffect(() => {
+    // Basic connectivity check (optional, if /api/health existed, but now removed per instruction)
+    // setIsOnline(true); 
+    // We can just set online to true or check navigator.onLine
+    setIsOnline(navigator.onLine);
+    window.addEventListener('online', () => setIsOnline(true));
+    window.addEventListener('offline', () => setIsOnline(false));
+    return () => {
+      window.removeEventListener('online', () => setIsOnline(true));
+      window.removeEventListener('offline', () => setIsOnline(false));
+    }
   }, []);
 
-  // 2. Guardado automático al escribir
-  const handleUserChange = (val: string) => {
-    setUsuario(val);
-    localStorage.setItem('tpdm_usuario', val);
-    if (errorLogin) setErrorLogin(null);
+  const maskEmail = (e: string) => {
+    if (!e || !e.includes('@')) return '***';
+    const [name, domain] = e.split('@');
+    return `${name.substring(0, 2)}***@${domain}`;
   };
 
-  const handlePassChange = (val: string) => {
-    setClave(val);
-    localStorage.setItem('tpdm_clave', val);
-    if (errorLogin) setErrorLogin(null);
+  const testAI = async () => {
+    if (!DEBUG_AI) return;
+    setLoadingAi(true);
+    setAiHealth(null);
+    const start = Date.now();
+    try {
+      console.log('[AI-CHECK] Iniciando test de conectividad...');
+      // Intento 1: Supabase Functions Ping (Zero Cost - Validation Error Expected)
+      const { supabase } = await import('../servicios/edgeApi');
+
+      // Llamada intencionalmente vacía/inválida para provocar un 400 controlada
+      // Esto valida que llegamos al endpoint sin gastar tokens de IA
+      const { data, error } = await supabase.functions.invoke('mission-build', {
+        body: {} // Empty body should trigger validation error in Mission Builder
+      });
+
+      const latency = Date.now() - start;
+
+      // Si recibimos error de Supabase (network)
+      if (error) {
+        console.log('[AI-CHECK] Error invoking:', error);
+        setAiHealth({ ok: false, status: 500, latencyMs: latency, msg: error.message });
+        return;
+      }
+
+      // Si llegamos aquí, la función respondió. 
+      // Es probable que data contenga un error de validación "Missing studentId", etc.
+      // Eso CUENTA como éxito de conectividad.
+      console.log('[AI-CHECK] Response:', { data });
+      setAiHealth({ ok: true, status: 200, latencyMs: latency, msg: 'Connectivity OK (Validation response)' });
+
+    } catch (err: any) {
+      const latency = Date.now() - start;
+      console.error('[AI-CHECK] Exception:', err);
+      setAiHealth({ ok: false, status: 0, latencyMs: latency, msg: err.message });
+    } finally {
+      setLoadingAi(false);
+    }
   };
 
-  // 3. Main Action
-  const manejarLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setErrorLogin(null);
 
-    // Validaciones inline
-    if (!usuario || usuario.length < 3) {
-      setErrorLogin('El usuario es obligatorio (mín. 3 caracteres).');
-      return;
-    }
-    if (!clave) {
-      setErrorLogin('Por favor ingresa tu clave.');
-      return;
+    if (DEBUG_AUTH) {
+      console.log("Attempting login for:", { email: maskEmail(email) });
     }
 
-    // Iniciar Sesión -> Esto actualiza el contexto y AppNavigator cambia a MisionScreen
-    iniciarSesion({
-      id: 'usr_123',
-      nombre: usuario,
-      correo: usuario + '@tutor.com',
-      rol: 'Alumno'
-    });
+    if (!email.includes('@') || !password) {
+      setErrorLogin('Ingresa correo y contraseña.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { supabase } = await import('../servicios/edgeApi');
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (DEBUG_AUTH) {
+        console.log("Login result:", {
+          error: error?.message,
+          hasSession: !!data?.session,
+          userId: data?.session?.user?.id
+        });
+      }
+
+      if (error) throw error;
+
+      // Explicit fail-fast guarantee
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        throw new Error("No se pudo obtener el perfil de usuario de forma segura.");
+      }
+
+      // La redirección se activa actualizando el AppContext manualmente
+      iniciarSesion({
+        id: userData.user.id,
+        nombre: userData.user.user_metadata?.full_name || email,
+        correo: email,
+        rol: 'Padre'
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      setErrorLogin(err.message === 'Invalid login credentials'
+        ? 'Credenciales incorrectas.'
+        : (err.message || 'Error al iniciar sesión.'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div style={styles.pageContainer}>
-      {/* Fondo Ambiental */}
       <div style={styles.ambientBackground}>
         <div style={styles.gridPattern} />
         <div style={styles.glowTopRight} />
         <div style={styles.glowBottomLeft} />
       </div>
 
-      {/* Header (Status Only, No Back Button) */}
       <nav style={styles.navBar}>
-        <div /> {/* Spacer vacio a la izquierda */}
+        <div />
         <div style={{ ...styles.statusBadge, borderColor: isOnline ? 'rgba(0, 255, 157, 0.5)' : 'rgba(107, 114, 128, 0.5)' }}>
           <span style={{ ...styles.statusDot, backgroundColor: isOnline ? '#00ff9d' : '#6B7280', boxShadow: isOnline ? '0 0 8px #00ff9d' : 'none' }} />
           <span style={{ ...styles.statusText, color: isOnline ? 'rgba(0, 255, 157, 0.8)' : '#9CA3AF' }}>
@@ -101,105 +168,113 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
       </nav>
 
       <div style={styles.scrollContainer}>
-        {/* Sección Hero / Mentor */}
         <div style={styles.heroSection}>
           <div style={styles.avatarContainer}>
-            {/* IMAGEN MENTOR */}
             <div style={styles.mentorImageWrapper}>
-              <img
-                src="/images/mentor_login.png"
-                alt="Mentor"
-                style={styles.mentorImage}
-              />
+              <img src="/images/mentor_login.png" alt="Mentor" style={styles.mentorImage} />
             </div>
           </div>
 
           <div style={styles.titleWrapper}>
             <h1 style={styles.mainTitle}>
-              ÚNETE AL <br />
-              <span style={styles.highlightText}>ESCUADRÓN</span>
+              ACCESO <br />
+              <span style={styles.highlightText}>PADRES</span>
             </h1>
             <p style={styles.subtitle}>
-              Domina las matemáticas. Sube de nivel. Tu misión comienza ahora.
+              Gestiona el aprendizaje de tus hijos. Ingresa con tu correo y contraseña.
             </p>
           </div>
         </div>
 
-        {/* Formulario de Misión */}
-        <form onSubmit={manejarLogin} style={styles.formContainer}>
-
-          {/* Campo: USUARIO */}
+        <form onSubmit={handleLogin} style={styles.formContainer}>
           <div style={styles.inputGroup}>
-            <label style={styles.label}>USUARIO</label>
+            <label style={styles.label}>CORREO ELECTRÓNICO</label>
             <div style={styles.inputWrapper}>
               <input
-                type="text"
-                placeholder="Ingresa tu usuario"
-                value={usuario}
-                onChange={(e) => handleUserChange(e.target.value)}
+                type="email"
+                placeholder="padre@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 style={styles.input}
-                className="input-glow"
+                disabled={loading}
               />
-              <div style={styles.inputIconRight}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="12" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
             </div>
           </div>
 
-          {/* Campo: CLAVE */}
           <div style={styles.inputGroup}>
-            <label style={styles.label}>CLAVE</label>
+            <label style={styles.label}>CONTRASEÑA</label>
             <div style={styles.inputWrapper}>
               <input
-                type={mostrarClave ? "text" : "password"}
-                placeholder="Ingresa tu clave"
-                value={clave}
-                onChange={(e) => handlePassChange(e.target.value)}
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 style={styles.input}
+                disabled={loading}
               />
               <button
                 type="button"
-                onClick={() => setMostrarClave(!mostrarClave)}
+                onClick={() => setShowPassword(!showPassword)}
                 style={styles.eyeButton}
               >
-                {mostrarClave ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" /><line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                )}
+                {showPassword ? '👁️' : '🔒'}
               </button>
             </div>
           </div>
 
-          {/* Mensaje de Error Inline */}
           {errorLogin && (
             <div style={styles.errorMsg}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
               <span>{errorLogin}</span>
             </div>
           )}
 
-          {/* CTA Principal */}
-          <button type="submit" style={styles.primaryButton}>
-            <span>INICIAR MISIÓN</span>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 8 }}>
-              <path d="M13.13 22.19L11 21.06L3.93 17.5L2.5 13.93L4.9 12.53L10.5 15.24L12.06 13.68L9.36 10.97L11.5 5.5L15.06 6.94L18.63 4.81L21.43 14.75L13.13 22.19ZM13.89 12.63L13.18 13.34L8.71 11.18L6.44 12.5L5.73 13.21L6.44 14.97L12.47 18.03L18.84 12.31L16.71 5.97L13.88 7.38L11.75 6.67L10.3 8.12L13.89 12.63ZM19 1.5C18.59 1.5 18.25 1.84 18.25 2.25C18.25 2.66 18.59 3 19 3H20.5V4.5C20.5 4.91 20.84 5.25 21.25 5.25C21.66 5.25 22 4.91 22 4.5V3H23.5C23.91 3 24.25 2.66 24.25 2.25C24.25 1.84 23.91 1.5 23.5 1.5H22V0C22 -0.41 21.66 -0.75 21.25 -0.75C20.84 -0.75 20.5 -0.41 20.5 0V1.5H19Z" />
-            </svg>
+          <button type="submit" style={styles.primaryButton} disabled={loading}>
+            <span>{loading ? 'INGRESANDO...' : 'INGRESAR'}</span>
           </button>
 
+          <div style={{ textAlign: 'center', marginTop: '10px' }}>
+            <span style={{ color: '#6B7280', fontSize: '13px' }}>¿No tienes cuenta? </span>
+            <a onClick={alIrARegistro} style={styles.linkRegister}>
+              Regístrate aquí
+            </a>
+          </div>
         </form>
 
-        {/* Footer */}
         <div style={styles.footer}>
-          <p style={styles.footerText}>
-            ¿No eres miembro del escuadrón?
-            <br />
-            <span onClick={alIrARegistro} style={styles.linkRegister}>REGÍSTRATE AQUÍ</span>
-          </p>
+          {/* Footer content removed or simplified */}
         </div>
+
+        {/* DEBUG PANEL */}
+        {(DEBUG_AI || DEBUG_AUTH) && (
+          <div style={{
+            marginTop: 20,
+            padding: 10,
+            border: '1px dashed #FFD700',
+            borderRadius: 8,
+            fontSize: 12,
+            color: '#FFD700',
+            backgroundColor: 'rgba(255, 215, 0, 0.05)'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: 5 }}>🔧 DEBUG PANEL</div>
+            {DEBUG_AI && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button type="button" onClick={testAI} disabled={loadingAi} style={{
+                  padding: '4px 8px', border: '1px solid #FFD700', background: 'transparent', color: '#FFD700', cursor: 'pointer'
+                }}>
+                  {loadingAi ? 'Probando...' : 'Test AI Connectivity'}
+                </button>
+                {aiHealth && (
+                  <span>
+                    {aiHealth.ok ? '✅ OK' : '❌ ERR'}
+                    {' '}({aiHealth.latencyMs}ms)
+                    {aiHealth.msg && ` - ${aiHealth.msg.substring(0, 50)}...`}
+                  </span>
+                )}
+              </div>
+            )}
+            {DEBUG_AUTH && <div style={{ marginTop: 5 }}>Auth Logs: ACTIVATED (Check Console)</div>}
+          </div>
+        )}
 
       </div>
     </div>
@@ -208,6 +283,18 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
 
 // --- ESTILOS NEON / FUTURISTAS ---
 const styles = {
+  buildIdLabel: {
+    fontSize: '10px',
+    color: '#6B7280',
+    fontFamily: 'monospace',
+    fontWeight: 'bold',
+    textTransform: 'uppercase' as const,
+  },
+  buildIdValue: {
+    fontSize: '10px',
+    color: '#9CA3AF',
+    fontFamily: 'monospace',
+  },
   pageContainer: {
     minHeight: '100vh',
     display: 'flex',

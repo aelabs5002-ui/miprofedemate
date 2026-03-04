@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 
 interface RegisterScreenProps {
     alIrALogin: () => void;
+    alIrAOtp: (email: string) => void;
+    alIrATerminos: () => void;
 }
 
 /**
@@ -9,24 +11,39 @@ interface RegisterScreenProps {
  * Orientada al Padre/Representante.
  * Sin gamificación excesiva ni botón atrás.
  */
-const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
+const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin, alIrAOtp, alIrATerminos }) => {
     const [nombre, setNombre] = useState('');
     const [email, setEmail] = useState('');
+    const [confirmEmail, setConfirmEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [mostrarPassword, setMostrarPassword] = useState(false);
+    const [acceptTerms, setAcceptTerms] = useState(false);
 
     // Estados de feedback
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-    const manejarRegistro = (e: React.FormEvent) => {
+    // Helpers de validación
+    const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+    const emailsMatch = email.trim() === confirmEmail.trim();
+    const passwordsMatch = password === confirmPassword;
+    const isPasswordValid = password.length >= 6;
+
+    const isFormValid =
+        nombre.trim().length > 0 &&
+        isValidEmail(email) &&
+        confirmEmail.trim().length > 0 &&
+        emailsMatch &&
+        isPasswordValid &&
+        passwordsMatch &&
+        acceptTerms;
+
+    const manejarRegistro = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMsg(null);
-        setSuccessMsg(null);
 
         // Validaciones básicas
-        if (!nombre.trim() || !email.trim() || !password || !confirmPassword) {
+        if (!nombre.trim() || !email.trim() || !confirmEmail.trim() || !password || !confirmPassword) {
             setErrorMsg('Por favor completa todos los campos.');
             return;
         }
@@ -41,13 +58,44 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
             return;
         }
 
-        // Simular éxito de creación de cuenta
-        setSuccessMsg('¡Cuenta creada correctamente! Redirigiendo...');
+        if (email.trim() !== confirmEmail.trim()) {
+            setErrorMsg('Los correos no coinciden.');
+            return;
+        }
 
-        // Redirigir a Login después de breve delay (o inmediato)
-        setTimeout(() => {
-            alIrALogin();
-        }, 1500);
+        if (!acceptTerms) {
+            setErrorMsg('Debes aceptar los términos y condiciones.');
+            return;
+        }
+
+        try {
+            const { supabase } = await import('../servicios/edgeApi');
+
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        full_name: nombre,
+                    }
+                }
+            });
+
+            if (error) throw error;
+
+            if (data?.user) {
+                // User created successfully
+            }
+
+            // Éxito: Guardar email y navegar a OTP
+            // IMPORTANTE: Primero guardar en storage, luego navegar
+            localStorage.setItem('pending_signup_email', email);
+            alIrAOtp(email);
+
+        } catch (err: any) {
+            console.error(err);
+            setErrorMsg(err.message || 'Error al crear la cuenta.');
+        }
     };
 
     return (
@@ -121,6 +169,25 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                         </div>
                     </div>
 
+                    {/* Campo: CONFIRMAR EMAIL */}
+                    <div style={styles.inputGroup}>
+                        <label style={styles.label}>CONFIRMAR EMAIL</label>
+                        <div style={styles.inputWrapper}>
+                            <input
+                                type="email"
+                                placeholder="Repite tu correo"
+                                value={confirmEmail}
+                                onChange={(e) => setConfirmEmail(e.target.value)}
+                                style={styles.input}
+                            />
+                        </div>
+                        {confirmEmail && !emailsMatch && (
+                            <span style={{ color: '#ffb3b3', fontSize: '11px', marginTop: '2px', marginLeft: '4px' }}>
+                                Los correos no coinciden
+                            </span>
+                        )}
+                    </div>
+
                     {/* Campo: PASSWORD */}
                     <div style={styles.inputGroup}>
                         <label style={styles.label}>CLAVE (Mín. 6 caracteres)</label>
@@ -160,6 +227,20 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                         </div>
                     </div>
 
+                    {/* Checkbox: Terms */}
+                    <div style={styles.checkboxContainer}>
+                        <input
+                            type="checkbox"
+                            checked={acceptTerms}
+                            onChange={(e) => setAcceptTerms(e.target.checked)}
+                            style={styles.checkbox}
+                            id="terms-checkbox"
+                        />
+                        <label htmlFor="terms-checkbox" style={styles.checkboxLabel}>
+                            Acepto los <span onClick={alIrATerminos} style={styles.linkTerms}>Términos y Condiciones</span>
+                        </label>
+                    </div>
+
                     {/* Mensajes de Estado Inline */}
                     {errorMsg && (
                         <div style={styles.errorMsg}>
@@ -168,15 +249,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ alIrALogin }) => {
                         </div>
                     )}
 
-                    {successMsg && (
-                        <div style={styles.successMsg}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                            <span>{successMsg}</span>
-                        </div>
-                    )}
-
                     {/* CTA Register */}
-                    <button type="submit" style={styles.primaryButton}>
+                    <button
+                        type="submit"
+                        disabled={!isFormValid}
+                        style={isFormValid ? styles.primaryButton : { ...styles.primaryButton, ...styles.disabledButton }}
+                    >
                         <span>FINALIZAR REGISTRO</span>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 8 }}>
                             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -427,6 +505,36 @@ const styles = {
         fontSize: '16px',
         display: 'inline-block',
         marginTop: '4px',
+    },
+    disabledButton: {
+        opacity: 0.5,
+        cursor: 'not-allowed',
+        boxShadow: 'none',
+        transform: 'none',
+    },
+    checkboxContainer: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        marginTop: '8px',
+        paddingLeft: '4px',
+    },
+    checkbox: {
+        width: '18px',
+        height: '18px',
+        cursor: 'pointer',
+        accentColor: '#34D399',
+    },
+    checkboxLabel: {
+        fontSize: '13px',
+        color: '#D1D5DB',
+        cursor: 'pointer',
+    },
+    linkTerms: {
+        color: '#34D399',
+        fontWeight: '700',
+        textDecoration: 'underline',
+        cursor: 'pointer',
     },
 };
 
