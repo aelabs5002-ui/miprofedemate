@@ -248,6 +248,17 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
               Regístrate aquí
             </a>
           </div>
+
+          <div
+            style={{
+              marginTop: "10px",
+              textAlign: "center",
+              fontSize: "11px",
+              opacity: 0.6
+            }}
+          >
+            BUILD: {BUILD_ID}
+          </div>
         </form>
 
         <div style={styles.footer}>
