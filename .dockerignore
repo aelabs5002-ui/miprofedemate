@@ -1,12 +1,7 @@
 node_modules
 dist
-.env
 .git
 .github
-mongo-data
-docker-compose.yml
-debug_infrastructure.sh
-fix_routing_remote.sh
-task.md
-prototype/
-**/prototype/
+*.log
+.env
+.env.*
