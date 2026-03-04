@@ -129,10 +129,12 @@ const MisionScreen: React.FC<MisionScreenProps & { userId?: string }> = ({ alIrA
                             </div>
                         </div>
                     </div>
-                    <button style={styles.notifBtn}>
-                        <span style={{ fontSize: '20px' }}>🔔</span>
-                        <div style={styles.notifDot} />
-                    </button>
+                    {false && (
+                        <button style={styles.notifBtn}>
+                            <span style={{ fontSize: '20px' }}>🔔</span>
+                            <div style={styles.notifDot} />
+                        </button>
+                    )}
                 </header>
 
                 <div style={styles.scrollContent}>

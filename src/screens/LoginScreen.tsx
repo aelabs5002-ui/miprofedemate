@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { BUILD_ID } from '../build';
 
 interface Props {
   alIrARegistro: () => void;
@@ -171,7 +172,16 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
         <div style={styles.heroSection}>
           <div style={styles.avatarContainer}>
             <div style={styles.mentorImageWrapper}>
-              <img src="/images/mentor_login.png" alt="Mentor" style={styles.mentorImage} />
+              <img
+                src="/images/mentor_login.png"
+                alt="Mentor"
+                style={styles.mentorImage}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.style.display = 'none';
+                }}
+              />
             </div>
           </div>
 
@@ -241,7 +251,8 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
         </form>
 
         <div style={styles.footer}>
-          {/* Footer content removed or simplified */}
+          <span style={styles.buildIdLabel}>BUILD: </span>
+          <span style={styles.buildIdValue}>{BUILD_ID}</span>
         </div>
 
         {/* DEBUG PANEL */}
