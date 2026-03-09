@@ -99,10 +99,12 @@ export const ProductionHealthScreen: React.FC = () => {
 const styles = {
   container: {
     minHeight: '100vh',
+    width: '100%',
     display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
     paddingTop: '40px',
+    paddingBottom: '40px',
     backgroundColor: '#121212',
     color: '#e0e0e0',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
@@ -117,7 +119,8 @@ const styles = {
     marginBottom: '24px',
     width: '100%',
     maxWidth: '600px',
-    margin: '0 auto 24px auto',
+    padding: '0 20px',
+    boxSizing: 'border-box' as const,
   },
   title: {
     margin: 0,
@@ -134,7 +137,8 @@ const styles = {
   content: {
     maxWidth: '600px',
     width: '100%',
-    margin: '0 auto',
+    padding: '0 20px',
+    boxSizing: 'border-box' as const,
   },
   button: {
     backgroundColor: '#007BFF',
@@ -149,7 +153,9 @@ const styles = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gridTemplateColumns: '1fr',
+    justifyItems: 'stretch',
+    width: '100%',
     gap: '16px',
   },
   card: {
@@ -160,6 +166,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px',
+    width: '100%',
+    boxSizing: 'border-box' as const,
   },
   cardHeader: {
     display: 'flex',
