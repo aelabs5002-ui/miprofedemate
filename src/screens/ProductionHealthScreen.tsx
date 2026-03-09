@@ -3,21 +3,19 @@ import { HealthCheckItem } from '../types/health';
 import { runHealthCheck } from '../services/health/healthCheck';
 
 export const ProductionHealthScreen: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [results, setResults] = useState<HealthCheckItem[]>([]);
-  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [checks, setChecks] = useState<HealthCheckItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const startCheck = async () => {
+  const startCheck = () => {
     setLoading(true);
-    try {
-      const currentChecks = await runHealthCheck();
-      setResults(currentChecks);
-    } catch (e) {
-      console.error('Fatal error during health check', e);
-    } finally {
-      setLastChecked(new Date().toLocaleTimeString());
+    setChecks([]);
+    runHealthCheck().then((data) => {
+      setChecks(data);
       setLoading(false);
-    }
+    }).catch((e) => {
+      console.error(e);
+      setLoading(false);
+    });
   };
 
   useEffect(() => {
@@ -65,19 +63,16 @@ export const ProductionHealthScreen: React.FC = () => {
           >
             {loading ? 'Comprobando...' : 'Reintentar diagnóstico'}
           </button>
-          {lastChecked && (
-            <span style={styles.timestamp}>Última revisión: {lastChecked}</span>
-          )}
         </div>
 
-        {loading && results.length === 0 ? (
-          <div style={styles.loadingBox}>Corriendo auditoría inicial...</div>
+        {checks.length === 0 ? (
+          <div style={styles.loadingBox}>Ejecutando diagnóstico...</div>
         ) : (
           <div style={styles.grid}>
-            {results.map((check) => (
+            {checks.map((check) => (
               <div key={check.id} style={styles.card}>
                 <div style={styles.cardHeader}>
-                  <h3 style={styles.cardTitle}>{check.label}</h3>
+                  <h3 style={styles.cardTitle}>{check.id}</h3>
                   {renderBadge(check.status)}
                 </div>
                 <p style={styles.cardMessage}>{check.message}</p>
@@ -87,9 +82,6 @@ export const ProductionHealthScreen: React.FC = () => {
                   ) : (
                     <span></span>
                   )}
-                  <span style={styles.checkedAt}>
-                    {new Date(check.checkedAt).toLocaleTimeString()}
-                  </span>
                 </div>
               </div>
             ))}
@@ -147,10 +139,6 @@ const styles = {
     fontSize: '14px',
     transition: 'background-color 0.2s',
   },
-  timestamp: {
-    fontSize: '13px',
-    color: '#aaa',
-  },
   loadingBox: {
     padding: '40px',
     textAlign: 'center' as const,
@@ -160,7 +148,7 @@ const styles = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: '16px',
   },
   card: {
@@ -181,6 +169,8 @@ const styles = {
     margin: 0,
     fontSize: '16px',
     fontWeight: '600' as const,
+    textTransform: 'uppercase' as const,
+    color: '#4db8ff',
   },
   cardMessage: {
     margin: 0,
@@ -191,14 +181,14 @@ const styles = {
   },
   cardFooter: {
     display: 'flex',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     marginTop: 'auto',
-    fontSize: '12px',
+    fontSize: '13px',
     color: '#888',
   },
   latency: {
     fontFamily: 'monospace',
+    color: '#aa88ff',
   },
-  checkedAt: {},
 };
