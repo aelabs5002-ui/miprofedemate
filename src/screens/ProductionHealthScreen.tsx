@@ -47,13 +47,27 @@ export const ProductionHealthScreen: React.FC = () => {
   };
 
   const placeholders = [
-    { id: 'BUILD', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
-    { id: 'BUILDTXT', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
-    { id: 'SUPABASE', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
-    { id: 'ENV', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'BUILD', category: 'INFRASTRUCTURE', label: 'BUILD', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'BUILDTXT', category: 'INFRASTRUCTURE', label: 'build.txt', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'SUPABASE', category: 'INFRASTRUCTURE', label: 'Supabase', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'ENV', category: 'INFRASTRUCTURE', label: 'Environment', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'STORAGE', category: 'SERVICES', label: 'Storage', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'EDGE_FUNCTIONS', category: 'SERVICES', label: 'Edge Functions', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'UPLOAD_PATH', category: 'SERVICES', label: 'Upload Path', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'OCR_ANALYZE', category: 'TUTOR FLOW', label: 'OCR / Analyze', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'MISSION_ENGINE', category: 'TUTOR FLOW', label: 'Mission Engine', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'TUTOR_START_CONTRACT', category: 'TUTOR FLOW', label: 'Tutor Start Contract', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
   ];
 
-  const displayChecks = checks.length > 0 ? checks : placeholders;
+  const displayChecks = checks.length > 0 ? checks : placeholders as HealthCheckItem[];
+
+  const grouped = displayChecks.reduce((acc, check) => {
+    if (!acc[check.category]) {
+      acc[check.category] = [];
+    }
+    acc[check.category].push(check);
+    return acc;
+  }, {} as Record<string, HealthCheckItem[]>);
 
   return (
     <div style={styles.container}>
@@ -73,23 +87,34 @@ export const ProductionHealthScreen: React.FC = () => {
 
       <main style={styles.content}>
 
-        <div style={styles.grid}>
-          {displayChecks.map((check) => (
-            <div key={check.id} style={styles.card}>
-              <div style={styles.cardHeader}>
-                <h3 style={styles.cardTitle}>{check.id}</h3>
-                {renderBadge(check.status)}
-              </div>
-              <p style={styles.cardMessage}>{check.message}</p>
-              <div style={styles.cardFooter}>
-                {check.latencyMs !== undefined ? (
-                  <span style={styles.latency}>Latencia: {check.latencyMs}ms</span>
-                ) : (
-                  <span></span>
-                )}
-              </div>
-            </div>
-          ))}
+        <div style={styles.sectionsContainer}>
+          {['INFRASTRUCTURE', 'SERVICES', 'TUTOR FLOW'].map((category) => {
+            const categoryChecks = grouped[category] || [];
+            if (categoryChecks.length === 0) return null;
+            return (
+              <section key={category} style={styles.section}>
+                <h2 style={styles.sectionTitle}>{category}</h2>
+                <div style={styles.grid}>
+                  {categoryChecks.map((check) => (
+                    <div key={check.id} style={styles.card}>
+                      <div style={styles.cardHeader}>
+                        <h3 style={styles.cardTitle}>{check.label || check.id}</h3>
+                        {renderBadge(check.status)}
+                      </div>
+                      <p style={styles.cardMessage}>{check.message}</p>
+                      <div style={styles.cardFooter}>
+                        {check.latencyMs !== undefined ? (
+                          <span style={styles.latency}>Latencia: {check.latencyMs}ms</span>
+                        ) : (
+                          <span></span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       </main>
     </div>
@@ -150,6 +175,25 @@ const styles = {
     fontWeight: 'bold',
     fontSize: '13px',
     transition: 'background-color 0.2s',
+  },
+  sectionsContainer: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '30px',
+  },
+  section: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+  },
+  sectionTitle: {
+    margin: 0,
+    fontSize: '15px',
+    fontWeight: '700' as const,
+    color: '#aaa',
+    textTransform: 'uppercase' as const,
+    paddingBottom: '8px',
+    borderBottom: '1px solid #333',
   },
   grid: {
     display: 'grid',
