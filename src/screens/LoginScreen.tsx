@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { BUILD_ID } from '../build';
 
 interface Props {
   alIrARegistro: () => void;
@@ -33,14 +32,25 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
   // AI Health Check State
   const [aiHealth, setAiHealth] = useState<{ ok: boolean; status?: number; latencyMs?: number; msg?: string } | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [buildId, setBuildId] = useState<string>('cargando...');
 
   useEffect(() => {
-    // Basic connectivity check (optional, if /api/health existed, but now removed per instruction)
-    // setIsOnline(true); 
-    // We can just set online to true or check navigator.onLine
     setIsOnline(navigator.onLine);
     window.addEventListener('online', () => setIsOnline(true));
     window.addEventListener('offline', () => setIsOnline(false));
+
+    fetch('/build.txt')
+      .then(res => res.text())
+      .then(text => {
+        const match = text.match(/BUILD_ID=([^\r\n]+)/);
+        if (match && match[1]) {
+          setBuildId(match[1]);
+        } else {
+          setBuildId('unknown');
+        }
+      })
+      .catch(() => setBuildId('unknown'));
+
     return () => {
       window.removeEventListener('online', () => setIsOnline(true));
       window.removeEventListener('offline', () => setIsOnline(false));
@@ -248,22 +258,11 @@ const LoginScreen: React.FC<Props> = ({ alIrARegistro }) => {
               Regístrate aquí
             </a>
           </div>
-
-          <div
-            style={{
-              marginTop: "10px",
-              textAlign: "center",
-              fontSize: "11px",
-              opacity: 0.6
-            }}
-          >
-            BUILD: {BUILD_ID}
-          </div>
         </form>
 
         <div style={styles.footer}>
           <span style={styles.buildIdLabel}>BUILD: </span>
-          <span style={styles.buildIdValue}>{BUILD_ID}</span>
+          <span style={styles.buildIdValue}>{buildId}</span>
         </div>
 
         {/* DEBUG PANEL */}
