@@ -22,26 +22,31 @@ function createCheck(
 export async function runHealthCheck(): Promise<HealthCheckItem[]> {
   const checks: HealthCheckItem[] = [];
 
-  // 1. BUILD CHECK
-  if (BUILD_ID) {
-    checks.push(createCheck('build', 'BUILD', 'ok', BUILD_ID));
-  } else {
-    checks.push(createCheck('build', 'BUILD', 'warn', 'Not found'));
-  }
-
-  // 2. build.txt CHECK
+  // 1 & 2. BUILD and build.txt CHECKS
   const startBuildTxt = performance.now();
   try {
     const buildResp = await fetch('/build.txt');
     const latencyBuildTxt = Math.round(performance.now() - startBuildTxt);
+    
     if (buildResp.ok) {
+        const text = await buildResp.text();
         checks.push(createCheck('buildtxt', 'build.txt', 'ok', '200 OK', latencyBuildTxt));
+        
+        // Parse BUILD_ID=xxxxx
+        const match = text.match(/BUILD_ID=([^\r\n]+)/);
+        if (match && match[1]) {
+            checks.push(createCheck('build', 'BUILD', 'ok', match[1]));
+        } else {
+            checks.push(createCheck('build', 'BUILD', 'warn', 'Missing BUILD_ID in file'));
+        }
     } else {
         checks.push(createCheck('buildtxt', 'build.txt', 'fail', `Failed with status ${buildResp.status}`, latencyBuildTxt));
+        checks.push(createCheck('build', 'BUILD', 'fail', 'Could not fetch /build.txt'));
     }
   } catch (error: any) {
     const latencyBuildTxt = Math.round(performance.now() - startBuildTxt);
     checks.push(createCheck('buildtxt', 'build.txt', 'fail', error.message, latencyBuildTxt));
+    checks.push(createCheck('build', 'BUILD', 'fail', error.message));
   }
 
   // 3. SUPABASE CHECK

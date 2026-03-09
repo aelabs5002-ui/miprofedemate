@@ -58,22 +58,20 @@ export const ProductionHealthScreen: React.FC = () => {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1 style={styles.title}>Production Health Panel</h1>
-        <p style={styles.subtitle}>
-          System Diagnostic Interface. Isolated Mode.
-        </p>
+        <div>
+          <h1 style={styles.title}>Production Health Panel</h1>
+          <p style={styles.subtitle}>System Diagnostic Interface. Isolated Mode.</p>
+        </div>
+        <button
+          onClick={startCheck}
+          disabled={loading}
+          style={loading ? { ...styles.button, opacity: 0.7, cursor: 'not-allowed' } : styles.button}
+        >
+          {loading ? 'Comprobando...' : 'Reintentar'}
+        </button>
       </header>
 
       <main style={styles.content}>
-        <div style={styles.actions}>
-          <button
-            onClick={startCheck}
-            disabled={loading}
-            style={loading ? { ...styles.button, opacity: 0.7, cursor: 'not-allowed' } : styles.button}
-          >
-            {loading ? 'Comprobando...' : 'Reintentar diagnóstico'}
-          </button>
-        </div>
 
         <div style={styles.grid}>
           {displayChecks.map((check) => (
@@ -111,47 +109,48 @@ const styles = {
     boxSizing: 'border-box' as const,
   },
   header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     borderBottom: '1px solid #333',
     paddingBottom: '20px',
-    marginBottom: '20px',
+    marginBottom: '24px',
+    width: '100%',
+    maxWidth: '600px',
+    margin: '0 auto 24px auto',
   },
   title: {
     margin: 0,
-    fontSize: '24px',
+    fontSize: '20px',
+    fontWeight: '700' as const,
     color: '#ffffff',
+    lineHeight: '1.2',
   },
   subtitle: {
-    margin: '5px 0 0 0',
-    fontSize: '14px',
+    margin: '4px 0 0 0',
+    fontSize: '13px',
     color: '#888',
   },
   content: {
-    maxWidth: '420px',
+    maxWidth: '600px',
     width: '100%',
-    padding: '0 20px',
-  },
-  actions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-    marginBottom: '20px',
+    margin: '0 auto',
   },
   button: {
     backgroundColor: '#007BFF',
     color: '#fff',
     border: 'none',
-    padding: '10px 16px',
+    padding: '8px 16px',
     borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: 'bold',
-    fontSize: '14px',
+    fontSize: '13px',
     transition: 'background-color 0.2s',
-    width: '100%',
   },
   grid: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '12px',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: '16px',
   },
   card: {
     backgroundColor: '#1e1e1e',
