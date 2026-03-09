@@ -101,13 +101,14 @@ export const ProductionHealthScreen: React.FC = () => {
 const styles = {
   container: {
     minHeight: '100vh',
-    width: '100vw',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingTop: '40px',
     backgroundColor: '#121212',
     color: '#e0e0e0',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
-    padding: '20px',
     boxSizing: 'border-box' as const,
-    overflowY: 'auto' as const,
   },
   header: {
     borderBottom: '1px solid #333',
@@ -125,8 +126,9 @@ const styles = {
     color: '#888',
   },
   content: {
-    maxWidth: '900px',
-    margin: '0 auto',
+    maxWidth: '420px',
+    width: '100%',
+    padding: '0 20px',
   },
   actions: {
     display: 'flex',
@@ -144,11 +146,12 @@ const styles = {
     fontWeight: 'bold',
     fontSize: '14px',
     transition: 'background-color 0.2s',
+    width: '100%',
   },
   grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '16px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
   },
   card: {
     backgroundColor: '#1e1e1e',
