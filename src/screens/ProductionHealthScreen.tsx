@@ -22,11 +22,12 @@ export const ProductionHealthScreen: React.FC = () => {
     startCheck();
   }, []);
 
-  const renderBadge = (status: 'ok' | 'warn' | 'fail') => {
+  const renderBadge = (status: string) => {
     let bgColor = '#333';
     if (status === 'ok') bgColor = '#2e7d32'; // Green
     if (status === 'warn') bgColor = '#ed6c02'; // Orange
     if (status === 'fail') bgColor = '#d32f2f'; // Red
+    if (status === 'CHECKING...') bgColor = '#555'; // Gray
 
     return (
       <span
@@ -44,6 +45,15 @@ export const ProductionHealthScreen: React.FC = () => {
       </span>
     );
   };
+
+  const placeholders = [
+    { id: 'BUILD', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'BUILDTXT', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'SUPABASE', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+    { id: 'ENV', status: 'CHECKING...' as any, message: 'Ejecutando diagnóstico...', latencyMs: undefined },
+  ];
+
+  const displayChecks = checks.length > 0 ? checks : placeholders;
 
   return (
     <div style={styles.container}>
@@ -65,28 +75,24 @@ export const ProductionHealthScreen: React.FC = () => {
           </button>
         </div>
 
-        {checks.length === 0 ? (
-          <div style={styles.loadingBox}>Ejecutando diagnóstico...</div>
-        ) : (
-          <div style={styles.grid}>
-            {checks.map((check) => (
-              <div key={check.id} style={styles.card}>
-                <div style={styles.cardHeader}>
-                  <h3 style={styles.cardTitle}>{check.id}</h3>
-                  {renderBadge(check.status)}
-                </div>
-                <p style={styles.cardMessage}>{check.message}</p>
-                <div style={styles.cardFooter}>
-                  {check.latencyMs !== undefined ? (
-                    <span style={styles.latency}>Latencia: {check.latencyMs}ms</span>
-                  ) : (
-                    <span></span>
-                  )}
-                </div>
+        <div style={styles.grid}>
+          {displayChecks.map((check) => (
+            <div key={check.id} style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>{check.id}</h3>
+                {renderBadge(check.status)}
               </div>
-            ))}
-          </div>
-        )}
+              <p style={styles.cardMessage}>{check.message}</p>
+              <div style={styles.cardFooter}>
+                {check.latencyMs !== undefined ? (
+                  <span style={styles.latency}>Latencia: {check.latencyMs}ms</span>
+                ) : (
+                  <span></span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </main>
     </div>
   );
@@ -138,13 +144,6 @@ const styles = {
     fontWeight: 'bold',
     fontSize: '14px',
     transition: 'background-color 0.2s',
-  },
-  loadingBox: {
-    padding: '40px',
-    textAlign: 'center' as const,
-    color: '#aaa',
-    border: '1px dashed #444',
-    borderRadius: '8px',
   },
   grid: {
     display: 'grid',
